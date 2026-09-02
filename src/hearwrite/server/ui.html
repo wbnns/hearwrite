@@ -1,0 +1,235 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>HearWrite</title>
+<style>
+  :root {
+    --bg: #fbfbfa; --fg: #1a1a19; --dim: #8a8a85; --line: #e4e4e0;
+    --a: #2f6f4e; --b: #2b5c8a; --c: #8a4b2b; --d: #6b3f8a; --null: #a0a09a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16161a; --fg:#e8e8e4; --dim:#77776f; --line:#2a2a30;
+            --a:#7fc9a1; --b:#84b6e3; --c:#e0a077; --d:#bb9ae0; --null:#5a5a55; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.65
+         ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif; }
+  header { display:flex; align-items:center; gap:14px; padding:14px 20px;
+           border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); }
+  h1 { font-size:15px; font-weight:620; margin:0; letter-spacing:-0.01em; }
+  #mic { font:inherit; font-weight:560; padding:7px 16px; border-radius:7px;
+         border:1px solid var(--line); background:var(--fg); color:var(--bg); cursor:pointer; }
+  #mic[data-on="1"] { background:#c0392b; border-color:#c0392b; color:#fff; }
+  #state { color:var(--dim); font-size:13px; }
+  main { max-width:760px; margin:0 auto; padding:26px 20px 90px; }
+  .turn { margin:0 0 20px; padding-left:13px; border-left:3px solid var(--null); }
+  .turn[data-s="A"]{border-color:var(--a)} .turn[data-s="B"]{border-color:var(--b)}
+  .turn[data-s="C"]{border-color:var(--c)} .turn[data-s="D"]{border-color:var(--d)}
+  .who { font-size:11px; font-weight:660; letter-spacing:.09em; text-transform:uppercase;
+         color:var(--dim); margin-bottom:3px; }
+  .turn[data-s="A"] .who{color:var(--a)} .turn[data-s="B"] .who{color:var(--b)}
+  .turn[data-s="C"] .who{color:var(--c)} .turn[data-s="D"] .who{color:var(--d)}
+  .text { font-size:18px; line-height:1.6; }
+  .partial { color:var(--dim); font-style:italic; }
+  .unlabelled { border-bottom:1px dotted var(--null); }
+  .ended::after { content:"⏎"; color:var(--dim); font-size:12px; margin-left:7px; vertical-align:2px; }
+  footer { position:fixed; bottom:0; left:0; right:0; display:flex; gap:22px;
+           padding:9px 20px; border-top:1px solid var(--line); background:var(--bg);
+           font:12px ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--dim); }
+  footer b { color:var(--fg); font-weight:600; }
+  #hint { max-width:760px; margin:0 auto; padding:0 20px; color:var(--dim); font-size:14px; }
+  code { font:12px ui-monospace,Menlo,monospace; background:var(--line);
+         padding:1px 5px; border-radius:4px; }
+</style>
+
+<header>
+  <h1>HearWrite</h1>
+  <button id="mic" data-on="0">Start listening</button>
+  <span id="state">not connected</span>
+</header>
+
+<main>
+  <div id="hint">
+    Click <b>Start listening</b> and allow microphone access. Words appear as they
+    are recognised. Grey italic text is a <code>partial</code> and may change;
+    solid text is <code>commit</code>ted and never will. A dotted underline means
+    the speaker is not yet identified — it fills in once there is enough audio.
+  </div>
+  <div id="log"></div>
+</main>
+
+<footer>
+  <span>delay p50 <b id="p50">—</b></span>
+  <span>p90 <b id="p90">—</b></span>
+  <span>words <b id="words">0</b></span>
+  <span>speakers <b id="spk">0</b></span>
+  <span>turns <b id="turns">0</b></span>
+  <span id="err" style="color:#c0392b"></span>
+</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const log = $("log"), state = $("state");
+let ws, ctx, node, stream, running = false;
+const delays = [], turns = new Map(); let seqSpeaker = new Map(), speakers = new Set();
+
+function setState(t) { state.textContent = t; }
+
+function turnEl(n) {
+  let el = turns.get(n);
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "turn";
+    el.innerHTML = '<div class="who">speaker —</div><div class="text"></div>';
+    log.appendChild(el);
+    turns.set(n, el);
+    $("turns").textContent = turns.size;
+  }
+  return el;
+}
+
+function setSpeaker(n, who) {
+  const el = turnEl(n);
+  el.dataset.s = who || "";
+  el.querySelector(".who").textContent = who ? "speaker " + who : "speaker —";
+}
+
+// Partials must be cleared across EVERY turn, not just the current one. A
+// partial rendered just before a turn_start is stranded in the turn that closed,
+// so the word shows up twice: once as leftover grey text at the end of one turn
+// and again as a real commit at the start of the next.
+function clearPartials() {
+  log.querySelectorAll(".partial").forEach(n => n.remove());
+}
+
+let currentTurn = 0;
+function handle(ev) {
+  const p = ev.payload || {};
+  if (ev.kind === "turn_start") {
+    clearPartials();
+    currentTurn = p.turn;
+    turnEl(p.turn);
+    setSpeaker(p.turn, p.speaker);
+  } else if (ev.kind === "commit") {
+    clearPartials();
+    const el = turnEl(currentTurn || 1).querySelector(".text");
+    const w = document.createElement("span");
+    w.textContent = p.text + " ";
+    w.dataset.seq = ev.seq;
+    if (!p.speaker) w.className = "unlabelled";
+    el.appendChild(w);
+    delays.push(p.delay);
+    $("words").textContent = delays.length;
+    const s = [...delays].sort((a, b) => a - b);
+    $("p50").textContent = s[Math.floor(s.length * 0.5)].toFixed(2) + "s";
+    $("p90").textContent = s[Math.floor(s.length * 0.9)].toFixed(2) + "s";
+    if (p.speaker) { speakers.add(p.speaker); $("spk").textContent = speakers.size; }
+    window.scrollTo(0, document.body.scrollHeight);
+  } else if (ev.kind === "partial") {
+    clearPartials();
+    const el = turnEl(currentTurn || 1).querySelector(".text");
+    const w = document.createElement("span");
+    w.className = "partial";
+    w.textContent = p.text + " ";
+    el.appendChild(w);
+  } else if (ev.kind === "speaker") {
+    // A label arriving after the fact for a word committed as null.
+    const w = log.querySelector('[data-seq="' + p.seq + '"]');
+    if (w) w.classList.remove("unlabelled");
+    speakers.add(p.speaker);
+    $("spk").textContent = speakers.size;
+    const el = turnEl(currentTurn || 1);
+    if (!el.dataset.s) setSpeaker(currentTurn || 1, p.speaker);
+  } else if (ev.kind === "endpoint") {
+    clearPartials();
+    turnEl(currentTurn || 1).querySelector(".text").classList.add("ended");
+  } else if (ev.kind === "degraded") {
+    $("err").textContent = p.degraded ? "falling behind: partials dropped" : "";
+  }
+}
+
+async function start() {
+  $("err").textContent = "";
+  setState("asking for the microphone…");
+  stream = await navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+  });
+
+  // Ask the browser for 16kHz directly. Every model in the pipeline expects it,
+  // and resampling in JavaScript is a good way to be quietly wrong.
+  ctx = new AudioContext({ sampleRate: 16000 });
+  if (ctx.sampleRate !== 16000) {
+    throw new Error("browser gave " + ctx.sampleRate + "Hz, need 16000Hz");
+  }
+
+  const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host;
+  ws = new WebSocket(url);
+  ws.binaryType = "arraybuffer";
+  await new Promise((ok, no) => { ws.onopen = ok; ws.onerror = () => no(new Error("cannot reach " + url)); });
+  setState("listening");
+
+  ws.onmessage = (m) => {
+    const d = JSON.parse(m.data);
+    if (d.kind === "hello") { setState("listening · protocol " + d.protocol); return; }
+    handle(d);
+  };
+  ws.onclose = () => { if (running) { setState("disconnected"); stop(); } };
+
+  await ctx.audioWorklet.addModule(
+    URL.createObjectURL(new Blob([`
+      class Tap extends AudioWorkletProcessor {
+        process(inputs) {
+          const ch = inputs[0][0];
+          if (ch) {
+            const pcm = new Int16Array(ch.length);
+            for (let i = 0; i < ch.length; i++) {
+              const s = Math.max(-1, Math.min(1, ch[i]));
+              pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+            }
+            this.port.postMessage(pcm.buffer, [pcm.buffer]);
+          }
+          return true;
+        }
+      }
+      registerProcessor("tap", Tap);
+    `], { type: "application/javascript" }))
+  );
+
+  node = new AudioWorkletNode(ctx, "tap");
+  node.port.onmessage = (e) => { if (ws.readyState === 1) ws.send(e.data); };
+  ctx.createMediaStreamSource(stream).connect(node);
+  // Keep the graph alive without routing the microphone to the speakers.
+  node.connect(ctx.createGain()).connect(ctx.destination);
+}
+
+function stop() {
+  running = false;
+  $("mic").dataset.on = "0";
+  $("mic").textContent = "Start listening";
+  try { if (ws && ws.readyState === 1) { ws.send("finish"); } } catch (e) {}
+  try { node && node.disconnect(); } catch (e) {}
+  try { ctx && ctx.close(); } catch (e) {}
+  try { stream && stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+  setState("stopped");
+}
+
+// ?autostart=1 begins listening without a click. Useful for a kiosk, and it is
+// how the browser audio path gets tested: headless Chrome can inject a WAV file
+// as the microphone, but it cannot press a button.
+if (new URLSearchParams(location.search).has("autostart")) {
+  addEventListener("load", () => $("mic").click());
+}
+
+$("mic").onclick = async () => {
+  if (running) return stop();
+  running = true;
+  $("mic").dataset.on = "1";
+  $("mic").textContent = "Stop";
+  try {
+    await start();
+  } catch (e) {
+    $("err").textContent = e.message;
+    setState("failed");
+    stop();
+  }
+};
+</script>

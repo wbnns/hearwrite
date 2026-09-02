@@ -57,6 +57,25 @@ is conservative against the measurements above. Raise it deliberately:
 hearwrite serve --max-sessions 24
 ```
 
+## The browser UI
+
+`hearwrite serve` also serves a single page at `/` on the same port: microphone
+capture, a live transcript, speaker colours and endpoint markers. `--open`
+launches it.
+
+It is one HTML file inside the package, with no build step and no CDN. The page
+captures at 16kHz through an AudioWorklet and sends raw PCM over the same
+WebSocket any other client would use, so the demo and a real integration are the
+same code path rather than two things that can drift.
+
+Two notes for deploying it beyond localhost. Browsers only grant microphone
+access on a **secure context**, which means `localhost` works but a bare IP over
+plain HTTP does not — put TLS in front. And the page connects back to
+`location.host`, so it follows wherever you serve it without configuration.
+
+If you do not want it exposed, it is a static page with no privileged access;
+blocking `GET /` at your proxy removes it and leaves the socket working.
+
 ## Running it
 
 ### Docker

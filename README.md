@@ -16,10 +16,22 @@ project actually is.
 
 It runs on a laptop. A 1GB VPS is enough.
 
+## Try it on your Mac
+
 ```sh
-pip install 'hearwrite[onnx,turn]'
-hearwrite transcribe meeting.wav --policy conversation
+pip install 'hearwrite[onnx,turn,server]'
+hearwrite serve --open
 ```
+
+That downloads the models on first run, starts the service, and opens a browser.
+Click **Start listening**, allow the microphone, and talk. Words appear as they
+are recognised, speaker labels attach at turn boundaries, and a `⏎` marks where
+the endpoint fired.
+
+The page is served by the same process on the same port, so there is nothing
+else to run. It uses your browser's microphone, captures at 16kHz, and streams
+raw PCM over the WebSocket the service already speaks — which means the demo and
+a real integration are the same code path.
 
 ```
   0    0.74s  speech_onset
@@ -37,7 +49,8 @@ That is real output, not a mock up, and the `-` is the point. A speaker label
 cannot exist before enough audio has been heard to identify the voice, so the
 first words commit with `speaker: null` and the `speaker` events at the end fill
 them in retroactively. Committing a *guess* there would be unfixable; leaving a
-gap is not.
+gap is not. The browser UI shows those words with a dotted underline until they
+resolve.
 
 ## What it does, measured
 
@@ -158,6 +171,7 @@ asserted by CI, not hoped for.
 ## Use it
 
 ```sh
+hearwrite serve --open                  # the browser UI, mic included
 hearwrite demo                          # a full session, no models needed
 hearwrite models                        # what is available, and its licence
 hearwrite transcribe recording.wav      # 16kHz mono WAV
@@ -229,7 +243,7 @@ src/hearwrite/
   speakers/            speaker frontend wrappers
   vad/                 acoustic gate wrappers
   turn/                semantic gate wrappers
-  server/              WebSocket service with admission control
+  server/              WebSocket service, admission control, and the browser UI
 tests/tier1/           fast, deterministic, no models, no network
 tests/tier2/           real models and real metrics, opt in
 ```

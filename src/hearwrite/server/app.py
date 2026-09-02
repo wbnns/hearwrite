@@ -21,11 +21,55 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+from pathlib import Path
 
 from ..coordinator import Policy, preset
 from ..pipeline import Backends, build
 from ..protocol import encode, hello_frame
 from .session import Admission, Rejected, Session
+
+UI = Path(__file__).parent / "ui.html"
+
+
+def _serve_ui(connection, request):
+    """Answer a plain GET with the browser UI, on the same port as the socket.
+
+    websockets hands every request here before deciding whether it is an
+    upgrade. Returning None means "carry on and treat it as a WebSocket";
+    returning a Response short circuits it, which is what a browser asking for
+    the page needs.
+
+    One port, one process, one command. A separate static server would be more
+    conventional and would also mean the page and the socket could disagree
+    about which host to talk to.
+    """
+    if request.headers.get("Upgrade", "").lower() == "websocket":
+        return None
+    # request.path carries the query string, so "/?autostart=1" is not "/".
+    # Comparing them directly 404s every URL with a parameter.
+    path = request.path.split("?", 1)[0]
+    if path not in ("/", "/index.html"):
+        return connection.respond(404, "not found\n")
+
+    from websockets.datastructures import Headers
+    from websockets.http11 import Response
+
+    body = UI.read_bytes()
+    # Built directly rather than via connection.respond(), which sets the body
+    # from its text argument and gives no way to replace it afterwards. Assigning
+    # .body to the object it returns silently sends nothing.
+    return Response(
+        200,
+        "OK",
+        Headers(
+            {
+                "Content-Type": "text/html; charset=utf-8",
+                "Content-Length": str(len(body)),
+                "Cache-Control": "no-store",
+            }
+        ),
+        body,
+    )
 
 
 def default_max_sessions() -> int:
@@ -60,7 +104,7 @@ async def serve(
             "the server extra is not installed.\n  pip install 'hearwrite[server]'"
         ) from exc
 
-    policy = policy or preset("dictation")
+    policy = policy or preset("conversation")
     backends = backends or Backends()
     limit = max_sessions if max_sessions is not None else default_max_sessions()
     admission = Admission(limit)
@@ -76,7 +120,7 @@ async def serve(
         finally:
             admission.release()
 
-    async with websockets.serve(handler, host, port, max_size=None):
+    async with websockets.serve(handler, host, port, max_size=None, process_request=_serve_ui):
         speakers = "solo" if policy.is_solo else "auto"
         print(
             f"hearwrite: listening on ws://{host}:{port} "
@@ -85,6 +129,7 @@ async def serve(
             f"max {limit} sessions)",
             file=sys.stderr,
         )
+        print(f"hearwrite: open http://{host}:{port} in a browser", file=sys.stderr)
         await asyncio.Future()
 
 

@@ -98,7 +98,12 @@ def build_parser() -> argparse.ArgumentParser:
     serve = sub.add_parser("serve", help="run the WebSocket service")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8080)
-    serve.add_argument("--policy", default="dictation", choices=sorted(PRESETS))
+    serve.add_argument(
+        "--policy",
+        default="conversation",
+        choices=sorted(PRESETS),
+        help="conversation labels speakers; dictation is solo and cheaper",
+    )
     serve.add_argument("--model", default="zipformer-en")
     serve.add_argument(
         "--max-sessions",
@@ -112,6 +117,9 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--threads", type=int, default=2)
     serve.add_argument("--no-vad", action="store_true")
     serve.add_argument("--no-turn", action="store_true")
+    serve.add_argument(
+        "--open", action="store_true", help="open the browser UI once the server is up"
+    )
 
     return parser
 
@@ -144,6 +152,15 @@ def _serve(args) -> int:
     except ImportError as exc:
         print(f"hearwrite serve: {exc}", file=sys.stderr)
         return 1
+    if getattr(args, "open", False):
+        import threading
+        import webbrowser
+
+        url = f"http://{'127.0.0.1' if args.host == '0.0.0.0' else args.host}:{args.port}"
+        # Give the models a moment to load, or the browser lands on a refused
+        # connection and the user reloads by hand for no reason.
+        threading.Timer(2.0, lambda: webbrowser.open(url)).start()
+
     try:
         asyncio.run(
             serve(
