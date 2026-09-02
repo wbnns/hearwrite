@@ -19,10 +19,14 @@ torch, no gated downloads, no licence to accept before you can try it.
 
 ## Status
 
-Early. The event model, protocol, Coordinator and the deterministic test suite
-are built and green. Real model backends are landing next -- see
+Early, but it runs. Streaming ASR, endpointing, the WebSocket service and the
+CLI work today on CPU. Speaker diarization is the next piece and is not built
+yet, so `conversation` policy currently labels everything as one speaker. See
 [CHANGELOG.md](./CHANGELOG.md) for what is actually done rather than what is
 planned.
+
+Measured on an M-series Mac, CPU only, with `zipformer-en`: **p50 emission delay
+0.40s, p90 0.60s, real time factor 0.03**.
 
 ## The one rule
 
@@ -104,6 +108,21 @@ Python 3.11+ required. Nothing else.
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 bin/check                      # lint, typecheck, Tier 1 -- the definition of done
+```
+
+To actually transcribe something:
+
+```sh
+.venv/bin/pip install -e '.[onnx,server]'
+hearwrite models                            # what is available, and its licence
+hearwrite transcribe recording.wav          # 16kHz mono WAV; downloads on first use
+hearwrite serve --port 8080                 # WebSocket: binary PCM up, JSON down
+```
+
+Tier 2 exercises the real models and is opt in, because it needs weights on disk:
+
+```sh
+.venv/bin/python -m pytest tests/tier2 -m tier2
 ```
 
 `bin/check` needs no GPU, no network and no model downloads, and it is the same

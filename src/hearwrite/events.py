@@ -86,6 +86,7 @@ class EventLog:
         self._events: list[Event] = []
         self._committed_words: int = 0
         self._last_commit_end: float = 0.0
+        self._last_at: float = 0.0
 
     def __len__(self) -> int:
         return len(self._events)
@@ -111,6 +112,16 @@ class EventLog:
         return self._last_commit_end
 
     def emit(self, kind: EventKind, at: float, payload: Mapping[str, Any]) -> Event:
+        # `at` is when the event was EMITTED, not what audio it describes. The
+        # audio span a commit refers to lives in its payload. Conflating the two
+        # is how `turn_start` once ended up claiming a position earlier than the
+        # endpoint that preceded it.
+        if at + 1e-6 < self._last_at:
+            raise AppendOnlyViolation(
+                f"{kind} at {at:.3f}s goes backwards; the log is already at {self._last_at:.3f}s"
+            )
+        self._last_at = max(self._last_at, at)
+
         if kind is EventKind.COMMIT:
             audio_start = float(payload["audio_start"])
             # Commits must tile the audio timeline forward. A commit that starts

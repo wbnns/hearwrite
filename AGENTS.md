@@ -15,7 +15,7 @@ are swappable and are not the product. The **Coordinator** is the product.
 Not a Whisper wrapper. Not a speech separation system. Not a batch transcriber.
 Not tied to any one model.
 
-## Seven rules
+## Eight rules
 
 1. **Committed output is append-only.** Once a `commit` is emitted, nothing may
    contradict it. `partial` may be revised freely. Enforced by
@@ -36,10 +36,14 @@ Not tied to any one model.
    at all. Asserted by `tests/tier1/test_solo.py`.
 7. **Every model wrapper is stateless and has a fake.** Policy lives in
    `coordinator/`, never in a wrapper.
+8. **`at` is when an event was emitted**, not what audio it describes. Audio
+   positions go in the payload. The log rejects an event from the past.
 
 ## Where things are
 
 - `src/hearwrite/coordinator/` — all state, all policy. The interesting code.
+- `src/hearwrite/models.py` — the model registry. Every entry is a plain public
+  download with a pinned SHA-256 and a recorded licence.
 - `src/hearwrite/{engines,speakers,vad,turn}/` — `base.py` is the interface,
   `fake.py` is the scripted test double, anything else is a real backend.
 - `src/hearwrite/events.py`, `protocol.py` — the frozen contract.

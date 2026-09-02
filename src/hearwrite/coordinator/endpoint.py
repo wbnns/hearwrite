@@ -65,6 +65,11 @@ class EndpointGate:
         return max(0.0, at - self._silence_since)
 
     @property
+    def silence_since(self) -> float | None:
+        """Stream position where the current run of silence began, if any."""
+        return self._silence_since if self._had_speech else None
+
+    @property
     def wants_completeness(self) -> bool:
         """True when a semantic score could change the outcome right now."""
         return self._silence_since is not None and self._had_speech

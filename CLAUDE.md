@@ -87,17 +87,36 @@ To add, say, a new ASR engine:
 
 ## What is already built (don't rebuild it)
 
-- The event model, the log with its append-only enforcement, and the protocol.
+- The event model, the log with its append-only and time-ordering enforcement,
+  and the protocol.
 - The full Coordinator: commit policy with C1 confidence gating, online
   clustering with threshold-and-margin assignment, bounded history, deferred
   merge and LRU eviction, the conjunctive endpoint gate with timeout fallback,
   and backpressure.
 - Scripted fakes for all four model layers.
-- 65 Tier 1 tests, `bin/check`, CI.
-- `hearwrite demo` and `hearwrite policies`.
+- **The sherpa-onnx transducer engine and the ONNX Silero VAD**, both working on
+  CPU. `src/hearwrite/models.py` resolves, downloads and checksums weights.
+- **The WebSocket service** with admission control, in `src/hearwrite/server/`.
+- `hearwrite demo | policies | models | transcribe | serve`.
+- 86 Tier 1 tests and 11 Tier 2 tests, `bin/check`, CI.
 
-**Not built yet:** every real model backend, and the WebSocket server. Those are
-Phase 1.
+**Not built yet:** the speaker frontend and everything diarization (Phase 1b),
+the faster-whisper second engine (Phase 1c), and semantic endpointing (Phase 3).
+`conversation` policy therefore labels everything as one speaker today.
+
+## Three things about the real engine that cost us bugs
+
+Each of these was found by running audio, not by reasoning, and each has a test:
+
+- **A transducer releases its last words late.** It needs trailing audio first.
+  So `flush()` feeds silence, or the end of every session is lost, and turn
+  membership is decided by a word's AUDIO position rather than by which turn
+  happened to be open when it arrived.
+- **The VAD and the ASR disagree about where speech ends.** The acoustic gate
+  called silence at 1.04s on a clip whose next word ran to 1.32s. Do not assume
+  an endpoint means the transcript is complete up to that point.
+- **`at` is when an event was emitted**, never what audio it describes. Audio
+  positions belong in the payload. `EventLog` now rejects an event from the past.
 
 ## Two things that look like bugs and are not
 

@@ -27,7 +27,7 @@ dependencies = []
 
 [project.optional-dependencies]
 # The blessed default: everything ONNX, everything CPU, nothing gated.
-onnx = ["sherpa-onnx>=1.13", "silero-vad>=6.2", "onnxruntime>=1.20", "numpy>=1.26"]
+onnx = ["sherpa-onnx>=1.13"]
 # A second engine of a genuinely different shape, to prove the interface holds.
 whisper = ["faster-whisper>=1.2"]
 # The only extra that needs torch. Keep it isolated.
@@ -60,9 +60,16 @@ strict_optional = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 
+[[tool.mypy.overrides]]
+# Neither ships type stubs. Both are used only inside a wrapper whose own
+# interface is fully typed, so the untyped surface stops at the module boundary.
+module = ["sherpa_onnx.*", "websockets.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
   "tier2: needs real models and downloads; not run by bin/check",
 ]
-addopts = "-q --strict-markers"
+# Tier 2 needs real weights on disk, so a bare `pytest` must not reach for it.
+addopts = "-q --strict-markers -m 'not tier2'"

@@ -81,6 +81,10 @@ class Coordinator:
         self._turn_open = False
         self._turn_speaker: str | None = None
         self._turn_index = 0
+        #: Audio position of the most recent endpoint. A word whose audio starts
+        #: before this belongs to the turn that already closed, however late it
+        #: arrives.
+        self._closed_through = 0.0
         self._spoke_yet = False
         self._last_completeness = 0.0
         #: Commit seq numbers still waiting for a speaker label, with the audio
@@ -193,7 +197,7 @@ class Coordinator:
                     f"probably reporting buffer-relative rather than stream-relative times"
                 )
             speaker = self._speaker_for(word)
-            self._maybe_open_turn(speaker, word.audio_start)
+            self._maybe_open_turn(speaker, at, word.audio_start)
             event = self.log.emit(
                 EventKind.COMMIT,
                 at,
@@ -216,13 +220,26 @@ class Coordinator:
             return None
         return self._tracker.label_for(word.audio_start, word.audio_end)
 
-    def _maybe_open_turn(self, speaker: str | None, at: float) -> None:
+    def _maybe_open_turn(self, speaker: str | None, at: float, audio_start: float) -> None:
         """A turn starts on the first word after an endpoint, or on a new voice.
+
+        `at` is the emission position, so the log stays ordered in time.
+        `audio_start` is where the turn's first word actually begins, which is
+        what a consumer wants to seek to. They are different numbers and both
+        matter -- stamping the event with the audio position is what once let a
+        turn_start claim a moment earlier than the endpoint before it.
 
         An unlabeled word never starts a turn on its own -- we do not know whose
         turn it would be, and inventing a boundary is exactly the kind of guess
         the append-only rule punishes.
         """
+        # A streaming transducer releases its last words only after it hears
+        # trailing audio, so words routinely arrive after the endpoint that
+        # followed them. Such a word trails the closed turn; opening a new turn
+        # for it would invent a boundary in the middle of a finished sentence.
+        if not self._turn_open and audio_start + 1e-6 < self._closed_through:
+            return
+
         changed = speaker is not None and self._turn_open and speaker != self._turn_speaker
         if self._turn_open and not changed:
             return
@@ -233,7 +250,11 @@ class Coordinator:
             self.log.emit(
                 EventKind.TURN_START,
                 at,
-                {"speaker": speaker, "turn": self._turn_index},
+                {
+                    "speaker": speaker,
+                    "turn": self._turn_index,
+                    "audio_start": audio_start,
+                },
             )
 
     def _emit_partial(self, hypothesis: Hypothesis, at: float) -> None:
@@ -305,3 +326,4 @@ class Coordinator:
         self._fill_unlabeled(final=True)
         self._turn_open = False
         self._turn_speaker = None
+        self._closed_through = max(self._closed_through, at)
