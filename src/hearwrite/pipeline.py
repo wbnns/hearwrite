@@ -21,12 +21,24 @@ from typing import Any
 
 from .coordinator import Policy
 
+#: Nemotron rather than the zipformer, on measurement. On one test recording it
+#: committed sooner (p50 0.36s against 0.52s) AND produced punctuation and
+#: capitalisation, which is most of why a raw transducer transcript reads as
+#: wrong even when every word is right. It costs about five times the CPU:
+#: real time factor 0.26 against 0.05 on Apple silicon.
+#:
+#: That trade is right for a laptop and wrong for a very small VPS. Use
+#: `--model zipformer-en` where cycles are scarce; see docs/deployment.md.
+DEFAULT_SHERPA_MODEL = "nemotron-3.5-160ms"
+
 
 @dataclass(frozen=True)
 class Backends:
     """Which implementation to use for each of the four interfaces."""
 
     engine: str = "sherpa"
+    #: None means the engine's own default: nemotron for sherpa, base for
+    #: whisper.
     model: str | None = None
     speaker_model: str = "titanet-small"
     turn_model: str = "smart-turn"
@@ -67,7 +79,7 @@ def build_engine(backends: Backends) -> Any:
     from .engines.sherpa import SherpaStreamingEngine
 
     return SherpaStreamingEngine.from_model(
-        backends.model or "zipformer-en", num_threads=backends.threads
+        backends.model or DEFAULT_SHERPA_MODEL, num_threads=backends.threads
     )
 
 

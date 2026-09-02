@@ -47,3 +47,23 @@ def test_caches_are_bounded():
     for name in ("transducer", "speaker_embedder", "turn_session"):
         info = getattr(loaders, name).cache_info()
         assert info.maxsize is not None and info.maxsize <= 8, name
+
+
+def test_the_default_recogniser_is_the_one_that_punctuates():
+    """A transcript in block capitals with no punctuation reads as broken even
+    when every word is right, and that is what people judge on. The default was
+    changed on measurement: nemotron committed sooner AND produced readable
+    text, at about five times the CPU.
+    """
+    from hearwrite.pipeline import DEFAULT_SHERPA_MODEL, Backends
+
+    assert DEFAULT_SHERPA_MODEL == "nemotron-3.5-160ms"
+    assert Backends().model is None, "the default must come from one place"
+
+
+def test_the_lightweight_recogniser_is_still_available():
+    """The default costs five times the CPU. A small VPS needs the other one."""
+    from hearwrite.models import REGISTRY
+
+    assert "zipformer-en" in REGISTRY
+    assert "nemotron-3.5-160ms" in REGISTRY

@@ -64,7 +64,7 @@ estimate.
 | Speaker confusion | **3.1%** at 2 speakers, **7.6%** at 24 |
 | Speaker count | discovered, exact at 2, 4, 8, 16 and 24 |
 | False endpoint | **5.0%** of mid thought pauses |
-| Real time factor | **0.047** one stream, **0.133** each at eight concurrent |
+| Real time factor | **0.26** with the default recogniser, **0.047** with the light one |
 | Memory | ~340MB shared, ~3MB per session |
 
 **Read the caveats before trusting the diarization and endpointing numbers.**
@@ -175,6 +175,7 @@ hearwrite serve --open                  # the browser UI, mic included
 hearwrite demo                          # a full session, no models needed
 hearwrite models                        # what is available, and its licence
 hearwrite transcribe recording.wav      # 16kHz mono WAV
+hearwrite transcribe rec.wav --model zipformer-en   # 5x cheaper, no punctuation
 hearwrite serve --port 8080             # WebSocket: binary PCM up, JSON down
 hearwrite bench fixture.wav             # score diarization against ground truth
 hearwrite endpoints midthought/         # score endpointing on mid thought clips
@@ -213,7 +214,8 @@ against a pinned SHA-256, and both rules are enforced by tests.
 
 | Model | Role | Licence |
 |---|---|---|
-| sherpa-onnx zipformer | streaming ASR | Apache-2.0 |
+| Nemotron 3.5 ASR (160ms) | streaming ASR, punctuated | OpenMDW-1.1 |
+| sherpa-onnx zipformer | streaming ASR, lightweight | Apache-2.0 |
 | NeMo TitaNet small | speaker embeddings | CC-BY-4.0 |
 | Silero VAD | acoustic gate | MIT |
 | smart-turn v3.1 | semantic gate | BSD-2-Clause |

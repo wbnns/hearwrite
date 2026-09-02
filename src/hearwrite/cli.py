@@ -66,7 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe.add_argument(
         "--model",
         default=None,
-        help="model name; defaults to zipformer-en for sherpa, base for whisper",
+        help="model name; defaults to nemotron-3.5-160ms for sherpa, base for whisper",
     )
     transcribe.add_argument("--speaker-model", default="titanet-small")
     transcribe.add_argument("--language", default=None, help="whisper only; auto if unset")
@@ -487,7 +487,12 @@ def _render(event) -> str:
     if event.kind == "turn_start":
         return f"{head} turn {p['turn']}, speaker {p['speaker'] or '-'}"
     if event.kind == "speaker":
-        return f"{head} seq {p['seq']} -> {p['speaker']}"
+        # A speaker event names either one word, by seq, or a whole turn that
+        # only became identifiable after it started. Both are real; assuming
+        # the first is a KeyError waiting for the second.
+        if "seq" in p:
+            return f"{head} seq {p['seq']} -> {p['speaker']}"
+        return f"{head} turn {p['turn']} -> {p['speaker']}"
     if event.kind == "endpoint":
         return f"{head} {p['reason']}"
     if event.kind == "degraded":

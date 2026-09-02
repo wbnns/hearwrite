@@ -104,3 +104,47 @@ def test_turn_start_records_both_clocks():
     start = next(e for e in events if e.kind == EventKind.TURN_START)
     assert start.payload["audio_start"] == pytest.approx(0.5)
     assert start.at >= start.payload["audio_start"]
+
+
+def test_every_consumer_handles_both_shapes_of_speaker_event():
+    """A `speaker` event names either one word or a whole turn.
+
+    Both shapes are real, and code that assumes the first raises KeyError on the
+    second. That happened three times in one change: in the metrics, in the CLI
+    renderer, and in a test helper. This is the guard.
+    """
+    import inspect
+
+    from hearwrite import cli, metrics
+
+    for module in (cli, metrics):
+        source = inspect.getsource(module)
+        # Every read of payload["seq"] must be guarded by a presence check.
+        for line in source.splitlines():
+            if '"seq"' in line and "payload" in line and "in event.payload" not in line:
+                assert "in p" in source or '"seq" in' in source, (
+                    f"{module.__name__} reads seq without checking for it: {line}"
+                )
+
+
+def test_a_turn_level_speaker_event_carries_a_turn_not_a_seq():
+    from hearwrite import CONVERSATION, Coordinator
+    from hearwrite.engines.base import Hypothesis
+    from hearwrite.engines.fake import ScriptedEngine, words
+    from hearwrite.speakers.base import Segment
+    from hearwrite.speakers.fake import ScriptedFrontend, embedding
+    from hearwrite.vad.fake import ScriptedVAD
+
+    coord = Coordinator(
+        CONVERSATION,
+        engine=ScriptedEngine(
+            script={3.0: Hypothesis(stable=words("one two three", each=0.9), consumed_to=3.0)}
+        ),
+        vad=ScriptedVAD(speech=((0.0, 3.0),)),
+        speakers=ScriptedFrontend(segments=(Segment(0.0, 2.0, embedding(1.0, 0.0, 0.0)),)),
+    )
+    events = drive(coord, 4.0)
+    turn_level = [e for e in events if e.kind == EventKind.SPEAKER and "seq" not in e.payload]
+    for event in turn_level:
+        assert "turn" in event.payload
+        assert "speaker" in event.payload

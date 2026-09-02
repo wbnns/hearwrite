@@ -108,7 +108,7 @@ def test_speaker_events_only_fill_nulls_never_change_a_label(two_speaker_segment
 
     labelled = {e.seq: e.payload["speaker"] for e in events if e.kind == EventKind.COMMIT}
     for event in events:
-        if event.kind == EventKind.SPEAKER:
+        if event.kind == EventKind.SPEAKER and "seq" in event.payload:
             target = event.payload["seq"]
             assert labelled[target] is None, (
                 f"speaker event tried to overwrite an existing label on seq {target}"

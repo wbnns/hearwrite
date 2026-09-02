@@ -67,7 +67,7 @@ class SherpaStreamingEngine:
     @classmethod
     def from_model(
         cls,
-        name_or_path: str = "zipformer-en",
+        name_or_path: str = "nemotron-3.5-160ms",
         *,
         num_threads: int = 2,
         provider: str = "cpu",

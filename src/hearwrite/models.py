@@ -85,6 +85,30 @@ REGISTRY: dict[str, ModelSpec] = {
         decoder=("decoder-*chunk-16-left-128.onnx", "decoder-*.onnx"),
         joiner=("joiner-*chunk-16-left-128.int8.onnx", "joiner-*.int8.onnx"),
     ),
+    # NVIDIA Nemotron 3.5 ASR, exported to ONNX by sherpa-onnx. Multilingual,
+    # and it emits PUNCTUATION AND CAPITALISATION natively, which is most of why
+    # a raw transducer transcript reads as wrong even when every word is right.
+    #
+    # The chunk size in the name is the model's lookahead, baked into the export.
+    # Smaller means the model commits sooner and costs more per second of audio.
+    # Measured on this hardware at 160ms: real time factor 0.22 against 0.05 for
+    # the zipformer, so about four times the cost for a transcript a person can
+    # actually read.
+    "nemotron-3.5-160ms": ModelSpec(
+        name="nemotron-3.5-160ms",
+        url=(
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/"
+            "sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-160ms-int8-2026-06-11.tar.bz2"
+        ),
+        licence="OpenMDW-1.1",
+        languages="40 locales",
+        approx_mb=453,
+        summary="Nemotron 3.5 streaming, 160ms lookahead. Punctuation and casing.",
+        sha256="a81909a1780d84cff16d73c15e13e67d9d81d8839faf14870d507d8499f7a61a",
+        encoder=("encoder.int8.onnx",),
+        decoder=("decoder.int8.onnx",),
+        joiner=("joiner.int8.onnx",),
+    ),
     "zipformer-en-small": ModelSpec(
         name="zipformer-en-small",
         url=(

@@ -15,8 +15,8 @@ embeddings, VAD and the turn detector.
 | Disk, model weights | 602MB downloaded, **265MB after `hearwrite models --prune`** |
 | Memory, shared models | ~340MB, loaded once for the whole process |
 | Memory, per session | ~3MB |
-| CPU, one stream | real time factor 0.047 |
-| CPU, eight concurrent streams | 0.133 each |
+| CPU, one stream | real time factor **0.26** (default), 0.047 (`--model zipformer-en`) |
+| CPU, eight concurrent streams | 0.133 each with the light recogniser |
 
 The shared-models figure is the important one. Every session used to load its
 own copy at about 230MB and a second of startup, so four sessions wanted a
@@ -131,6 +131,29 @@ certificates. Terminate TLS in front of it.
 **With authentication in front.** There is deliberately none built in. See
 [SECURITY.md](../SECURITY.md).
 
+## Choosing a recogniser
+
+This is the one decision that changes the resource picture, so it is worth
+making deliberately. Measured on the same recording, on Apple silicon:
+
+| Model | Real time factor | Download | Output |
+|---|---|---|---|
+| `nemotron-3.5-160ms` (default) | 0.26 | 453MB | `Test one two three Charlie's running up the stairs.` |
+| `zipformer-en` | 0.047 | 310MB | `TEST ONE TWO THREE CHARLEY'S RUNNING UP THE STAIRS` |
+
+Nemotron also commits SOONER, at p50 0.36s against 0.52s, so this is not the
+usual accuracy for latency trade. It is accuracy and latency for CPU.
+
+The default is right for a laptop and for any box with cycles to spare. It is
+wrong for a single shared vCPU: five times 0.05 is 0.26 here, and a VPS core
+several times slower than this one puts a single stream near real time, with
+nothing left for a second. **Measure before you assume**, then pick:
+
+```sh
+hearwrite transcribe sample.wav                        # the default
+hearwrite transcribe sample.wav --model zipformer-en   # the cheap one
+```
+
 ## Making it smaller
 
 * `hearwrite models --prune` deletes the float builds of every model, which are
@@ -140,5 +163,7 @@ certificates. Terminate TLS in front of it.
   them.
 * `--no-turn` drops semantic endpointing. Endpointing then reduces to a silence
   timer, which is faster and interrupts people more.
-* `--model zipformer-en-small` is a 20M parameter recognizer instead of the
-  default. Much faster, much less accurate; see [evaluation.md](./evaluation.md).
+* `--model zipformer-en` drops the default recogniser for one that costs about
+  a fifth of the CPU and 143MB less disk, at the price of block capitals and no
+  punctuation. `--model zipformer-en-small` is cheaper still and noticeably less
+  accurate; see [evaluation.md](./evaluation.md).

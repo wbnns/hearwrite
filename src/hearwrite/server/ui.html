@@ -72,7 +72,7 @@
 const $ = (id) => document.getElementById(id);
 const log = $("log"), state = $("state");
 let ws, ctx, node, stream, running = false;
-const delays = [], turns = new Map(); let seqSpeaker = new Map(), speakers = new Set();
+const delays = [], turns = new Map(), speakers = new Set();
 
 function setState(t) { state.textContent = t; }
 
