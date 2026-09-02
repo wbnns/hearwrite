@@ -75,7 +75,12 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe.add_argument("--no-vad", action="store_true", help="skip the acoustic gate")
     transcribe.add_argument("--no-turn", action="store_true", help="skip the semantic gate")
 
-    sub.add_parser("models", help="list known models and their licences")
+    models = sub.add_parser("models", help="list known models and their licences")
+    models.add_argument(
+        "--prune",
+        action="store_true",
+        help="delete downloaded model files no loader will ever open",
+    )
 
     endpoints = sub.add_parser("endpoints", help="score endpointing against a mid thought corpus")
     endpoints.add_argument("path", help="directory containing index.json")
@@ -98,7 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument(
         "--max-sessions",
         type=int,
-        default=4,
+        default=None,
         help="admission limit; never oversubscribe, latency is what users notice",
     )
     serve.add_argument("--engine", default="sherpa", choices=("sherpa", "whisper"))
@@ -119,7 +124,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "policies":
         return _policies()
     if args.command == "models":
-        return _models()
+        return _models(prune=args.prune)
     if args.command == "transcribe":
         return _transcribe(args)
     if args.command == "bench":
@@ -157,8 +162,8 @@ def _serve(args) -> int:
     return 0
 
 
-def _models() -> int:
-    from .models import REGISTRY, cache_root, resolve
+def _models(*, prune: bool = False) -> int:
+    from .models import REGISTRY, cache_root, resolve, unused_files
 
     print(f"cache: {cache_root()}")
     print()
@@ -175,6 +180,26 @@ def _models() -> int:
             f"  {spec.licence} | {spec.languages} | ~{spec.approx_mb}MB | "
             f"{state} | sha256 {'pinned' if spec.sha256 else 'UNPINNED'}"
         )
+
+    if not prune:
+        return 0
+
+    print()
+    freed = 0
+    for name in sorted(REGISTRY):
+        try:
+            directory = resolve(name, download=False)
+        except Exception:
+            continue
+        for path in unused_files(REGISTRY[name], directory):
+            size = path.stat().st_size
+            path.unlink()
+            freed += size
+            print(f"removed {path.name} ({size / 1e6:.0f}MB)")
+    if freed:
+        print(f"\nfreed {freed / 1e6:.0f}MB. Re-download with `hearwrite models`.")
+    else:
+        print("nothing to prune.")
     return 0
 
 

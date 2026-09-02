@@ -88,6 +88,15 @@ class SpeakerPolicy:
     #: Reaching across a stretch where the neighbours DISAGREE is the one case
     #: this must not do, and does not.
     max_gap: float = 2.0
+    #: How long a resolved segment is kept for labelling words.
+    #:
+    #: Words are labelled at commit time, moments after their audio, and an
+    #: unlabelled one is abandoned when its turn closes. So nothing needs a
+    #: segment from two minutes ago, and keeping them is not free: `label_for`
+    #: scans the list, so an unpruned session pays 1us per word in the first
+    #: minutes and 61us per word four hours in. Linear per word is quadratic
+    #: over a session.
+    segment_memory: float = 120.0
     #: Embeddings retained per cluster. Bounds memory over long sessions and
     #: lets the centroid be recomputed robustly instead of drifting toward
     #: whoever spoke most recently.

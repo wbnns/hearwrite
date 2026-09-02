@@ -18,7 +18,6 @@ from __future__ import annotations
 import array
 from typing import Any
 
-from ..models import resolve
 from .base import SpeechState
 
 _INT16_FULL_SCALE = 32768.0
@@ -48,22 +47,23 @@ class SileroVAD:
         min_speech_duration: float = 0.1,
         num_threads: int = 1,
     ) -> SileroVAD:
-        try:
-            import sherpa_onnx
-        except ImportError as exc:  # pragma: no cover - exercised by hand
-            raise ImportError(
-                "the ONNX backend is not installed.\n  pip install 'hearwrite[onnx]'"
-            ) from exc
+        """Build a VAD. Deliberately NOT shared: it carries state across calls,
+        so two sessions sharing one would contaminate each other's speech
+        boundaries. At 629KB a copy per session costs almost nothing.
+        """
+        from ..loaders import vad_model
 
-        config = sherpa_onnx.VadModelConfig()
-        config.silero_vad.model = str(resolve(name_or_path))
-        config.silero_vad.threshold = threshold
-        config.silero_vad.min_silence_duration = min_silence_duration
-        config.silero_vad.min_speech_duration = min_speech_duration
-        config.sample_rate = sample_rate
-        config.num_threads = num_threads
-        config.provider = "cpu"
-        return cls(sherpa_onnx.VadModel.create(config), sample_rate=sample_rate)
+        return cls(
+            vad_model(
+                name_or_path,
+                sample_rate=sample_rate,
+                threshold=threshold,
+                min_silence_duration=min_silence_duration,
+                min_speech_duration=min_speech_duration,
+                num_threads=num_threads,
+            ),
+            sample_rate=sample_rate,
+        )
 
     def push(self, pcm: bytes, at: float) -> SpeechState:
         self._buffer.extend(_to_floats(pcm))

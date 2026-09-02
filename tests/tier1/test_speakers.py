@@ -206,3 +206,37 @@ def test_defaults_match_the_measured_calibration():
 def test_cosine_matches_the_definition():
     a, b = embedding(1.0, 1.0), embedding(1.0, 0.0)
     assert math.isclose(cosine(a, b), 1 / math.sqrt(2), rel_tol=1e-9)
+
+
+def test_resolved_segments_are_pruned_so_labelling_stays_flat():
+    """Otherwise the cost per word grows with the length of the session.
+
+    `label_for` scans the resolved list, so an unpruned tracker charges 1us per
+    word in the first minutes and 61us per word four hours in. Linear per word
+    is quadratic over a session, and nothing needs a segment from two minutes
+    ago: words are labelled moments after their audio, and an unlabelled one is
+    abandoned when its turn closes.
+    """
+    t = tracker(segment_memory=60.0)
+    for i in range(400):
+        t.assign(seg(i * 2.0, i * 2.0 + 1.9, A if i % 2 else B))
+    assert len(t._resolved) < 60, f"kept {len(t._resolved)} segments"
+
+
+def test_pruning_keeps_everything_a_recent_word_could_need():
+    t = tracker(segment_memory=60.0)
+    for i in range(200):
+        t.assign(seg(i * 2.0, i * 2.0 + 1.9, A))
+    # A word inside the most recent segment must still resolve.
+    assert t.label_for(398.0, 398.5) is not None
+    # And one inside a segment from ten seconds ago.
+    assert t.label_for(390.0, 390.5) is not None
+
+
+def test_pruning_never_drops_a_span_a_word_still_overlaps():
+    """The prune horizon is measured from the newest segment, not wall time."""
+    t = tracker(segment_memory=30.0)
+    t.assign(seg(0.0, 1.9, A))
+    t.assign(seg(2.0, 3.9, B))
+    assert t.label_for(0.5, 0.9) == "A"
+    assert t.label_for(2.5, 2.9) == "B"

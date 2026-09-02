@@ -5,6 +5,41 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added -- it fits on a small VPS
+
+**Models are loaded once and shared across sessions.** Every session used to
+load its own copy: about 230MB and a second of startup each, so the default
+admission limit of four wanted roughly a gigabyte of resident memory before
+anyone had said a word. Five concurrent sessions now cost 339MB total instead of
+about 1.1GB, and connecting takes 0.01s instead of 0.86s after the first.
+
+The split is verified, not assumed. The recognizer, the speaker embedder and the
+turn detector's ONNX session hold no per-stream state -- two streams interleaved
+chunk by chunk on one recognizer produce byte identical output to running each
+alone. The VAD is not shared, because it has a `reset()` and therefore carries
+state; at 629KB a copy per session costs nothing.
+
+**`hearwrite models --prune`** deletes the float builds of every model, which
+are downloaded and never loaded. That is 354MB of a 602MB cache.
+
+**A Dockerfile and `docs/deployment.md`** with measured numbers rather than
+estimates: 172MB of packages, 265MB of pruned weights, ~340MB of shared memory
+plus ~3MB per session, real time factor 0.047 for one stream and 0.133 each for
+eight concurrent. A 1GB VPS runs it.
+
+**The admission limit is derived from the machine** rather than hardcoded to
+four. Memory is the binding constraint well before CPU, so the core count is
+conservative by a wide margin, which is the right side to err on.
+
+### Fixed
+
+**Speaker labelling got slower the longer a session ran.** `label_for` scanned
+every resolved segment, so it cost 1us per word in the first minutes and 61us
+per word four hours in -- linear per word is quadratic over a session. Segments
+older than the labelling window are now dropped, and the cost is flat at 0.7us
+regardless of session length.
+
+
 ### Fixed -- the entrances had drifted
 
 **The WebSocket service had been running without diarization or a semantic

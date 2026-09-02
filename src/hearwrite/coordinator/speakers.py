@@ -144,8 +144,22 @@ class SpeakerTracker:
             return Assignment(segment, None, "ambiguous")
 
         best.observe(segment.embedding, segment.duration, segment.end)
-        self._resolved.append((segment.start, segment.end, best.label))
+        self._remember(segment.start, segment.end, best.label)
         return Assignment(segment, best.label, "")
+
+    def _remember(self, start: float, end: float, label: str) -> None:
+        """Record a labelled span, and forget the ones nothing can still need.
+
+        Segments arrive in order, so the stale ones are always a prefix.
+        """
+        self._resolved.append((start, end, label))
+        horizon = end - self._policy.segment_memory
+        if self._resolved[0][1] >= horizon:
+            return
+        stale = 0
+        while stale < len(self._resolved) and self._resolved[stale][1] < horizon:
+            stale += 1
+        del self._resolved[:stale]
 
     def label_for(self, start: float, end: float) -> str | None:
         """Label a word by the segment it overlaps most, or by its neighbours.
@@ -244,7 +258,7 @@ class SpeakerTracker:
             last_heard=segment.end,
         )
         self._clusters[label] = cluster
-        self._resolved.append((segment.start, segment.end, label))
+        self._remember(segment.start, segment.end, label)
         return label
 
     def _evict_least_recent(self) -> None:

@@ -279,6 +279,24 @@ def _extract(blob: Path, workdir: Path, target: Path) -> None:
     shutil.move(str(source), str(target))
 
 
+def unused_files(spec: ModelSpec, directory: Path) -> list[Path]:
+    """Files in a model directory that no loader will ever open.
+
+    A sherpa archive ships float and int8 builds of every component. HearWrite
+    loads one of each, so roughly 260MB of a 335MB download sits there unread.
+    That is fine on a laptop and is not fine on a small VPS.
+    """
+    if spec.single_file:
+        return []
+    keep: set[Path] = set()
+    for patterns in (spec.encoder, spec.decoder, spec.joiner, spec.tokens):
+        for pattern in patterns:
+            keep.update(directory.glob(pattern))
+    return sorted(
+        p for p in directory.iterdir() if p.is_file() and p not in keep and p.suffix == ".onnx"
+    )
+
+
 def find(directory: Path, patterns: tuple[str, ...], *, what: str) -> Path:
     """First file matching any glob, in preference order."""
     for pattern in patterns:

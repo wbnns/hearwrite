@@ -84,6 +84,8 @@ To add, say, a new ASR engine:
 | When an utterance has ended | `src/hearwrite/coordinator/endpoint.py` |
 | What happens under load | `src/hearwrite/coordinator/backpressure.py` |
 | How the four models get assembled | `src/hearwrite/pipeline.py` |
+| Which models are shared, and why | `src/hearwrite/loaders.py` |
+| What it costs to deploy | `docs/deployment.md` |
 | Which model has which licence | `NOTICE` |
 
 ## What is already built (don't rebuild it)
@@ -132,6 +134,17 @@ Window length is part of the same calibration. Same speaker similarity climbs
 with window length while different speaker similarity stays flat, so a short
 window looks unlike itself. That is why windows are a fixed 2s and anything
 under 1.5s is not embedded at all.
+
+## Heavy models are shared; stateful ones are not
+
+`hearwrite.loaders` loads the recognizer, the speaker embedder and the turn
+session once and hands the same object to every session. That is what makes a
+1GB VPS viable: five sessions cost 339MB rather than 1.1GB.
+
+**Before sharing anything new, ask whether it holds state.** The VAD has a
+`reset()`, which is the tell, so it is built per session. Sharing it would let
+one session's audio move another's speech boundaries, and that shows up as
+"diarization is flaky under load" rather than as a failure.
 
 ## There is one pipeline builder, and both entrances use it
 

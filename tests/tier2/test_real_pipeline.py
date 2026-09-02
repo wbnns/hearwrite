@@ -493,3 +493,58 @@ def test_acoustic_only_cuts_people_off_and_the_semantic_gate_stops_it():
     assert with_gate < without_gate, (
         f"the semantic gate changed nothing: {with_gate} vs {without_gate}"
     )
+
+
+# -- model sharing -----------------------------------------------------------
+
+
+@needs_models
+def test_sharing_a_recognizer_is_safe():
+    """Two streams interleaved on one recognizer must not affect each other.
+
+    This is the assumption the whole memory story rests on: without it every
+    session reloads about 300MB of weights. sherpa's design says streams are
+    independent; this checks it rather than trusting it.
+    """
+    from hearwrite import loaders
+    from hearwrite.engines.sherpa import SherpaStreamingEngine
+
+    recognizer = loaders.transducer("zipformer-en")
+    a = SherpaStreamingEngine(recognizer)
+    b = SherpaStreamingEngine(recognizer)
+    alone = SherpaStreamingEngine(recognizer)
+
+    with wave.open(str(_FIXTURES / "conv_2spk.wav")) as handle:
+        pcm = handle.readframes(handle.getnframes())[: 20 * SR * 2]
+    other = pcm[::-1][: 10 * SR * 2]  # any different audio will do
+
+    at = 0.0
+    step = 320 * 2
+    for i in range(0, len(pcm), step):
+        at += step / 2 / SR
+        a.push(pcm[i : i + step], at)
+        if i < len(other):
+            b.push(other[i : i + step], at)
+    interleaved = " ".join(w.text for w in a.flush().stable)
+
+    at = 0.0
+    for i in range(0, len(pcm), step):
+        at += step / 2 / SR
+        alone.push(pcm[i : i + step], at)
+    solo = " ".join(w.text for w in alone.flush().stable)
+
+    assert interleaved == solo, "a concurrent stream changed the transcript"
+
+
+@needs_models
+def test_a_second_session_reuses_the_loaded_models():
+    """The property that makes a small VPS viable."""
+    from hearwrite import CONVERSATION, loaders
+    from hearwrite.pipeline import Backends, build
+
+    loaders.clear()
+    build(CONVERSATION, Backends())
+    first = loaders.loaded()
+    build(CONVERSATION, Backends())
+    assert loaders.loaded() == first, "a second session loaded its own models"
+    assert first["transducer"] == 1

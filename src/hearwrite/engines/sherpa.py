@@ -32,7 +32,7 @@ import math
 from pathlib import Path
 from typing import Any
 
-from ..models import ModelSpec, find, resolve
+from ..models import resolve
 from .base import Hypothesis, Word
 
 #: Assumed duration of a token that has no successor yet. Observed spacing on a
@@ -73,32 +73,20 @@ class SherpaStreamingEngine:
         provider: str = "cpu",
         decoding_method: str = "greedy_search",
         sample_rate: int = 16_000,
-        spec: ModelSpec | None = None,
     ) -> SherpaStreamingEngine:
-        """Build an engine from a registry name or a directory of ONNX files."""
-        try:
-            import sherpa_onnx
-        except ImportError as exc:  # pragma: no cover - exercised by hand
-            raise ImportError(
-                "the sherpa-onnx backend is not installed.\n  pip install 'hearwrite[onnx]'"
-            ) from exc
+        """Build an engine from a registry name or a directory of ONNX files.
 
-        directory = resolve(name_or_path)
-        from ..models import REGISTRY
+        The recognizer comes from the shared cache, so a second session costs a
+        stream rather than another 300MB of weights.
+        """
+        from ..loaders import transducer
 
-        spec = spec or REGISTRY.get(name_or_path) or REGISTRY["zipformer-en"]
-        recognizer = sherpa_onnx.OnlineRecognizer.from_transducer(
-            tokens=str(find(directory, spec.tokens, what="tokens file")),
-            encoder=str(find(directory, spec.encoder, what="encoder")),
-            decoder=str(find(directory, spec.decoder, what="decoder")),
-            joiner=str(find(directory, spec.joiner, what="joiner")),
+        recognizer = transducer(
+            name_or_path,
             num_threads=num_threads,
             provider=provider,
             decoding_method=decoding_method,
             sample_rate=sample_rate,
-            # HearWrite owns endpointing. Letting the recognizer also decide
-            # would give two components an opinion about the same question.
-            enable_endpoint_detection=False,
         )
         return cls(recognizer, sample_rate=sample_rate)
 

@@ -14,8 +14,9 @@ easy part and they are swappable; the hard part is coordinating three signals
 into one ordered stream that a client can trust. That coordination is what this
 project actually is.
 
-Everything in the default install runs on ONNX Runtime, on CPU, on a laptop. No
-torch, no gated downloads, no licence to accept before you can try it.
+Everything runs on ONNX Runtime, on CPU. No torch, no CUDA, no gated downloads,
+no licence to accept before you can try it. A 1GB VPS is enough:
+[deployment.md](./docs/deployment.md) has the measured numbers.
 
 ## Status
 
@@ -152,6 +153,15 @@ Tier 2 exercises the real models and is opt in, because it needs weights on disk
 
 `bin/check` needs no GPU, no network and no model downloads, and it is the same
 thing CI runs. If it is green locally the pipeline will be green too.
+
+## Deploying it
+
+No GPU anywhere. 172MB of packages, 265MB of weights after `hearwrite models
+--prune`, ~340MB of memory for the models shared across every session and about
+3MB per session on top. A `Dockerfile` is included.
+
+See [docs/deployment.md](./docs/deployment.md) for sizing, systemd, and what to
+turn off when you need it smaller.
 
 ## Contributing
 

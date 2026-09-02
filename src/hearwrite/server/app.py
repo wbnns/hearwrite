@@ -19,6 +19,7 @@ rather than fatal, so a chatty client cannot kill its own session.
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 
 from ..coordinator import Policy, preset
@@ -26,7 +27,22 @@ from ..pipeline import Backends, build
 from ..protocol import encode, hello_frame
 from .session import Admission, Rejected, Session
 
-DEFAULT_MAX_SESSIONS = 4
+
+def default_max_sessions() -> int:
+    """An admission limit derived from the machine, not from a guess.
+
+    Measured on a 10 core Apple M4 with all four models: one stream runs at a
+    real time factor of 0.047, eight concurrent streams at 0.133 each. So the
+    CPU has a great deal of headroom and memory is the binding constraint --
+    about 340MB for the shared models plus a few MB per session.
+
+    Defaulting to the core count is therefore conservative by a wide margin,
+    which is the right side to be on: latency degradation under contention is
+    the failure users notice first, so refusing a connection is kinder than
+    accepting it and being slow for everybody. Raise it deliberately, after
+    measuring on the machine you actually deploy to.
+    """
+    return max(2, min(16, os.cpu_count() or 2))
 
 
 async def serve(
@@ -35,7 +51,7 @@ async def serve(
     port: int = 8080,
     policy: Policy | None = None,
     backends: Backends | None = None,
-    max_sessions: int = DEFAULT_MAX_SESSIONS,
+    max_sessions: int | None = None,
 ) -> None:
     try:
         import websockets
@@ -46,7 +62,8 @@ async def serve(
 
     policy = policy or preset("dictation")
     backends = backends or Backends()
-    admission = Admission(max_sessions)
+    limit = max_sessions if max_sessions is not None else default_max_sessions()
+    admission = Admission(limit)
 
     async def handler(websocket) -> None:
         try:
@@ -65,7 +82,7 @@ async def serve(
             f"hearwrite: listening on ws://{host}:{port} "
             f"(engine {backends.engine}, speakers {speakers}, "
             f"semantic gate {'on' if backends.turn else 'off'}, "
-            f"max {max_sessions} sessions)",
+            f"max {limit} sessions)",
             file=sys.stderr,
         )
         await asyncio.Future()

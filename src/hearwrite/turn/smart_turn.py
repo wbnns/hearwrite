@@ -22,8 +22,6 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from ..models import resolve
-
 #: Nothing shorter than this carries enough evidence to judge completeness.
 MIN_AUDIO = 0.5
 
@@ -43,22 +41,13 @@ class SmartTurnDetector:
         sample_rate: int = 16_000,
         num_threads: int = 1,
     ) -> SmartTurnDetector:
-        try:
-            import onnxruntime as ort
-        except ImportError as exc:  # pragma: no cover - exercised by hand
-            raise ImportError(
-                "the turn detector needs onnxruntime.\n  pip install 'hearwrite[turn]'"
-            ) from exc
+        """The ONNX session is shared: it holds no state and `run()` is safe."""
+        from ..loaders import turn_session
 
-        options = ort.SessionOptions()
-        options.inter_op_num_threads = num_threads
-        options.intra_op_num_threads = num_threads
-        session = ort.InferenceSession(
-            str(resolve(name_or_path)),
-            sess_options=options,
-            providers=["CPUExecutionProvider"],
+        return cls(
+            turn_session(name_or_path, num_threads=num_threads),
+            sample_rate=sample_rate,
         )
-        return cls(session, sample_rate=sample_rate)
 
     def completeness(self, text: str = "", pcm: bytes | None = None) -> float:
         """Probability in [0, 1] that the utterance is finished.

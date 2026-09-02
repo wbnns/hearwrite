@@ -33,7 +33,6 @@ from __future__ import annotations
 import array
 from typing import Any
 
-from ..models import resolve
 from .base import Segment
 
 _INT16_FULL_SCALE = 32768.0
@@ -91,23 +90,13 @@ class SherpaSpeakerFrontend:
         num_threads: int = 2,
         **kwargs: Any,
     ) -> SherpaSpeakerFrontend:
-        try:
-            import sherpa_onnx
-        except ImportError as exc:  # pragma: no cover - exercised by hand
-            raise ImportError(
-                "the ONNX backend is not installed.\n  pip install 'hearwrite[onnx]'"
-            ) from exc
+        """The extractor is shared; the VAD is not, because it carries state."""
+        from ..loaders import speaker_embedder
         from ..vad.silero import SileroVAD
 
-        config = sherpa_onnx.SpeakerEmbeddingExtractorConfig()
-        config.model = str(resolve(name_or_path))
-        config.num_threads = num_threads
-        config.provider = "cpu"
-        extractor = sherpa_onnx.SpeakerEmbeddingExtractor(config)
-
+        extractor = speaker_embedder(name_or_path, num_threads=num_threads)
         # Its own VAD instance. Sharing one with the Coordinator would couple two
-        # components meant to be independently swappable, to save a 629KB model
-        # and about a millisecond per frame.
+        # components meant to be independently swappable.
         vad = SileroVAD.from_model(vad_model, sample_rate=sample_rate)
         return cls(extractor, vad, sample_rate=sample_rate, **kwargs)
 
