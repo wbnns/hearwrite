@@ -220,6 +220,7 @@ class Coordinator:
                     emitted_at=at,
                     speaker=speaker,
                     confidence=word.confidence,
+                    turn=self._turn_index,
                 ),
             )
             if speaker is None:
@@ -245,14 +246,34 @@ class Coordinator:
         turn it would be, and inventing a boundary is exactly the kind of guess
         the append-only rule punishes.
         """
-        # A streaming transducer releases its last words only after it hears
-        # trailing audio, so words routinely arrive after the endpoint that
-        # followed them. Such a word trails the closed turn; opening a new turn
-        # for it would invent a boundary in the middle of a finished sentence.
-        if not self._turn_open and audio_start + 1e-6 < self._closed_through:
+        # A turn belongs to a SPEAKER, not to a sentence. The reference system
+        # emits <|start_of_turn|> when the voice changes, and that is the right
+        # meaning: an endpoint says "this utterance finished", which is a break
+        # WITHIN someone's turn, not the start of somebody else's.
+        #
+        # Starting a turn on every endpoint chopped one person talking
+        # continuously into separate blocks with separate speaker headers, which
+        # reads as broken even when every word is correct.
+        if self._turn_open and self._turn_speaker is None and speaker is not None:
+            # The turn just became identifiable. That is NOT a speaker change --
+            # it is the same person, finally recognised -- so it must not open a
+            # new block. The turn_start already went out saying null and cannot
+            # be rewritten, so the identity is announced separately and a
+            # consumer updates the block it already has.
+            self._turn_speaker = speaker
+            self.log.emit(
+                EventKind.SPEAKER,
+                at,
+                {"turn": self._turn_index, "speaker": speaker},
+            )
             return
 
-        changed = speaker is not None and self._turn_open and speaker != self._turn_speaker
+        changed = (
+            speaker is not None
+            and self._turn_open
+            and self._turn_speaker is not None
+            and speaker != self._turn_speaker
+        )
         if self._turn_open and not changed:
             return
         if not self._turn_open or changed:
@@ -304,7 +325,13 @@ class Coordinator:
             self.log.emit(
                 EventKind.SPEAKER,
                 self._clock.position,
-                {"seq": seq, "speaker": label, "audio_start": start, "audio_end": end},
+                {
+                    "seq": seq,
+                    "speaker": label,
+                    "audio_start": start,
+                    "audio_end": end,
+                    "turn": self._turn_index,
+                },
             )
         self._unlabeled = still
 
@@ -357,9 +384,9 @@ class Coordinator:
             at,
             {"reason": str(reason), "completeness": completeness, "turn": self._turn_index},
         )
-        # The turn is now closed. Unlabeled words in it get one last chance at a
-        # label, then stay null forever; that bounds memory over a long session.
+        # Unlabeled words get one last chance at a label here, then stay null
+        # forever, which bounds memory over a long session. The TURN stays open:
+        # the same person is very likely about to keep talking, and only a
+        # different voice starts a new one.
         self._fill_unlabeled(final=True)
-        self._turn_open = False
-        self._turn_speaker = None
         self._closed_through = max(self._closed_through, at)

@@ -105,3 +105,20 @@ def test_serve_defaults_to_the_policy_that_labels_speakers():
     from hearwrite.cli import build_parser
 
     assert build_parser().parse_args(["serve"]).policy == "conversation"
+
+
+def test_the_page_groups_words_by_the_turn_the_server_assigns():
+    """Tracking a "current turn" on the client looks equivalent and is not: an
+    event can arrive for a turn other than the newest, and a turn identified
+    after the fact has to update the header it already rendered."""
+    html = app.UI.read_text()
+    assert "p.turn || lastTurn" in html
+    assert "p.seq === undefined" in html, "no handler for a turn level speaker event"
+
+
+def test_the_page_treats_an_endpoint_as_a_break_not_a_new_block():
+    """An endpoint ends an utterance, not a turn. Rendering it as a new block
+    chops one person talking continuously into pieces."""
+    html = app.UI.read_text()
+    assert 'classList.contains("brk")' in html, "consecutive endpoints not collapsed"
+    assert "el.lastElementChild" in html

@@ -125,7 +125,14 @@ def test_turn_detector_is_not_consulted_while_speech_continues():
     assert detector.calls == [], "the semantic gate ran while the speaker was still talking"
 
 
-def test_endpoint_closes_the_turn_so_the_next_word_opens_a_new_one():
+def test_an_endpoint_does_not_start_a_new_turn_for_the_same_speaker():
+    """A turn belongs to a speaker; an endpoint ends an utterance inside it.
+
+    The reference system emits <|start_of_turn|> when the VOICE changes, which
+    is the right meaning. Starting a turn on every endpoint chopped one person
+    talking continuously into separate blocks with separate speaker headers, and
+    that reads as broken output even when every word is correct.
+    """
     engine = ScriptedEngine(
         script={
             1.2: Hypothesis(stable=words("done.", start=0.4, each=0.4), consumed_to=1.2),
@@ -142,8 +149,46 @@ def test_endpoint_closes_the_turn_so_the_next_word_opens_a_new_one():
         turn=ScriptedTurnDetector(),
     )
     events = drive(coord, 5.0)
+
+    assert [e.payload["reason"] for e in events if e.kind == "endpoint"], "no endpoint"
     turns = [e.payload["turn"] for e in events if e.kind == "turn_start"]
-    assert turns == [1, 2], f"expected two turns, got {turns}"
+    assert turns == [1], f"an endpoint invented a turn boundary: {turns}"
+
+
+def test_a_different_speaker_does_start_a_new_turn():
+    """The thing turns are actually for."""
+    from hearwrite import CONVERSATION
+    from hearwrite.speakers.base import Segment
+    from hearwrite.speakers.fake import ScriptedFrontend, embedding
+
+    a, b = embedding(1.0, 0.0, 0.0), embedding(0.0, 1.0, 0.0)
+    coord = Coordinator(
+        CONVERSATION,
+        engine=ScriptedEngine(
+            script={4.0: Hypothesis(stable=words("one two three four", each=0.9), consumed_to=4.0)}
+        ),
+        vad=ScriptedVAD(speech=((0.0, 4.0),)),
+        speakers=ScriptedFrontend(segments=(Segment(0.0, 1.8, a), Segment(1.9, 3.7, b))),
+    )
+    events = drive(coord, 5.0)
+    speakers = [e.payload["speaker"] for e in events if e.kind == "turn_start"]
+    assert len(speakers) >= 2, f"a speaker change did not open a turn: {speakers}"
+
+
+def test_a_commit_says_which_turn_it_belongs_to():
+    """So a consumer can attach a later `speaker` event to the right block
+    without having to track turn_start itself."""
+    coord = Coordinator(
+        DICTATION,
+        engine=ScriptedEngine(
+            script={2.0: Hypothesis(stable=words("hello there", each=0.4), consumed_to=2.0)}
+        ),
+        vad=ScriptedVAD(speech=((0.0, 2.0),)),
+    )
+    events = drive(coord, 3.0)
+    commits = [e for e in events if e.kind == "commit"]
+    assert commits
+    assert all(e.payload["turn"] >= 1 for e in commits)
 
 
 # -- the semantic gate is sampled, not streamed -------------------------------

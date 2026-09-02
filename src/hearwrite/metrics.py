@@ -114,14 +114,20 @@ def load_turns(raw: Mapping[str, object]) -> tuple[Turn, ...]:
 def evaluate(events: Iterable[Event], turns: Sequence[Turn]) -> SpeakerReport:
     """Score committed words against ground truth turns."""
     commits = [e for e in events if e.kind is EventKind.COMMIT]
-    filled = _apply_speaker_events(events)
+    by_seq, by_turn = _apply_speaker_events(events)
+
+    def resolved(event: Event) -> str | None:
+        return (
+            event.payload["speaker"]
+            or by_seq.get(event.seq)
+            or by_turn.get(int(event.payload.get("turn", 0)))
+        )
 
     pairs: list[tuple[str | None, str | None]] = []
     for event in commits:
         middle = (event.payload["audio_start"] + event.payload["audio_end"]) / 2
         truth = next((t.speaker for t in turns if t.covers(middle)), None)
-        predicted = filled.get(event.seq, event.payload["speaker"])
-        pairs.append((predicted, truth))
+        pairs.append((resolved(event), truth))
 
     scorable = [(p, t) for p, t in pairs if t is not None]
     labelled = [(p, t) for p, t in scorable if p is not None]
@@ -136,17 +142,32 @@ def evaluate(events: Iterable[Event], turns: Sequence[Turn]) -> SpeakerReport:
         confused=len(labelled) - correct,
         predicted_speakers=len({p for p, _ in labelled}),
         true_speakers=len({t.speaker for t in turns}),
-        turn_label_latency=_turn_latencies(commits, filled, turns),
+        turn_label_latency=_turn_latencies(commits, by_seq, by_turn, turns),
     )
 
 
-def _apply_speaker_events(events: Iterable[Event]) -> dict[int, str]:
-    """Later `speaker` events fill labels a commit left null."""
-    filled: dict[int, str] = {}
+def _apply_speaker_events(
+    events: Iterable[Event],
+) -> tuple[dict[int, str], dict[int, str]]:
+    """Later `speaker` events fill labels a commit left null.
+
+    They come in two shapes and both count. One names a single word by `seq`,
+    for a word the clustering could not place at the time. The other names a
+    whole TURN, for a turn that began before the voice was identifiable -- the
+    same person, finally recognised, which is not a speaker change and so must
+    not be scored as an unlabelled turn.
+    """
+    by_seq: dict[int, str] = {}
+    by_turn: dict[int, str] = {}
     for event in events:
-        if event.kind is EventKind.SPEAKER:
-            filled[int(event.payload["seq"])] = str(event.payload["speaker"])
-    return filled
+        if event.kind is not EventKind.SPEAKER:
+            continue
+        speaker = str(event.payload["speaker"])
+        if "seq" in event.payload:
+            by_seq[int(event.payload["seq"])] = speaker
+        elif "turn" in event.payload:
+            by_turn[int(event.payload["turn"])] = speaker
+    return by_seq, by_turn
 
 
 def _best_mapping(pairs: Sequence[tuple[str, str]]) -> dict[str, str]:
@@ -190,7 +211,10 @@ def _best_mapping(pairs: Sequence[tuple[str, str]]) -> dict[str, str]:
 
 
 def _turn_latencies(
-    commits: Sequence[Event], filled: Mapping[int, str], turns: Sequence[Turn]
+    commits: Sequence[Event],
+    by_seq: Mapping[int, str],
+    by_turn: Mapping[int, str],
+    turns: Sequence[Turn],
 ) -> tuple[float, ...]:
     """How long after a turn begins before any word in it carries a speaker.
 
@@ -203,7 +227,12 @@ def _turn_latencies(
             middle = (event.payload["audio_start"] + event.payload["audio_end"]) / 2
             if not turn.covers(middle):
                 continue
-            if filled.get(event.seq, event.payload["speaker"]) is None:
+            known = (
+                event.payload["speaker"]
+                or by_seq.get(event.seq)
+                or by_turn.get(int(event.payload.get("turn", 0)))
+            )
+            if known is None:
                 continue
             out.append(max(0.0, float(event.at) - turn.start))
             break

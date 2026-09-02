@@ -13,8 +13,10 @@ connection outright is kinder than accepting it and being slow for everyone.
 from __future__ import annotations
 
 import time
+import wave
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from ..coordinator import Coordinator, Policy
 from ..events import Event
@@ -47,11 +49,33 @@ class Admission:
 class Session:
     """Wraps a Coordinator with the wall clock bookkeeping the server needs."""
 
-    def __init__(self, policy: Policy, *, engine, vad=None, speakers=None, turn=None) -> None:
+    def __init__(
+        self,
+        policy: Policy,
+        *,
+        engine,
+        vad=None,
+        speakers=None,
+        turn=None,
+        record: Path | None = None,
+    ) -> None:
         self.policy = policy
         self.coordinator = Coordinator(policy, engine=engine, vad=vad, speakers=speakers, turn=turn)
         self._started = time.monotonic()
         self._audio_seconds = 0.0
+        # Recording exists for one reason: when a transcript is bad, the first
+        # question is whether the audio was. Guessing at that from the far side
+        # of a browser, a microphone and a resampler is how you end up tuning
+        # the wrong thing.
+        self._recorder = None
+        if record is not None:
+            record.parent.mkdir(parents=True, exist_ok=True)
+            # The recorder spans the whole session and is closed in close(), so
+            # a context manager cannot express its lifetime.
+            self._recorder = wave.open(str(record), "wb")  # noqa: SIM115
+            self._recorder.setnchannels(1)
+            self._recorder.setsampwidth(2)
+            self._recorder.setframerate(policy.sample_rate)
 
     @property
     def lag(self) -> float:
@@ -66,7 +90,15 @@ class Session:
 
     def push(self, pcm: bytes) -> Iterator[Event]:
         self._audio_seconds += len(pcm) / (2 * self.policy.sample_rate)
+        if self._recorder is not None:
+            self._recorder.writeframes(pcm)
         yield from self.coordinator.push(pcm, lag=self.lag)
 
     def finish(self) -> Iterator[Event]:
         yield from self.coordinator.finish()
+        self.close()
+
+    def close(self) -> None:
+        if self._recorder is not None:
+            self._recorder.close()
+            self._recorder = None

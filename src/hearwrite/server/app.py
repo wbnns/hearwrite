@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+import time
 from pathlib import Path
 
 from ..coordinator import Policy, preset
@@ -96,6 +97,7 @@ async def serve(
     policy: Policy | None = None,
     backends: Backends | None = None,
     max_sessions: int | None = None,
+    record: Path | None = None,
 ) -> None:
     try:
         import websockets
@@ -116,7 +118,7 @@ async def serve(
             await websocket.close(code=1013, reason=str(exc))
             return
         try:
-            await _run_session(websocket, policy, backends)
+            await _run_session(websocket, policy, backends, record)
         finally:
             admission.release()
 
@@ -133,7 +135,7 @@ async def serve(
         await asyncio.Future()
 
 
-async def _run_session(websocket, policy, backends) -> None:
+async def _run_session(websocket, policy, backends, record=None) -> None:
     loop = asyncio.get_running_loop()
     # Building the pipeline touches disk and can take a second, so keep it off
     # the event loop: one connecting client must not stall the others.
@@ -142,7 +144,11 @@ async def _run_session(websocket, policy, backends) -> None:
     # silently ran without diarization or a semantic gate for two whole phases,
     # because nothing fails when a pipeline is merely worse.
     components = await loop.run_in_executor(None, build, policy, backends)
-    session = Session(policy, **components.as_kwargs())
+    path = None
+    if record is not None:
+        path = record / f"session-{int(time.time())}.wav"
+        print(f"hearwrite: recording this session to {path}", file=sys.stderr)
+    session = Session(policy, record=path, **components.as_kwargs())
 
     await websocket.send(
         hello_frame(sample_rate=policy.sample_rate, policy=str(policy.speakers.mode))
@@ -156,5 +162,8 @@ async def _run_session(websocket, policy, backends) -> None:
             break
         # Anything else is ignored: a chatty client should not kill its session.
 
-    for event in session.finish():
-        await websocket.send(encode(event))
+    try:
+        for event in session.finish():
+            await websocket.send(encode(event))
+    finally:
+        session.close()

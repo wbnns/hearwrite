@@ -14,6 +14,7 @@ import argparse
 import sys
 import time
 from collections.abc import Sequence
+from pathlib import Path
 
 from . import __version__
 from .coordinator import PRESETS, Coordinator, preset
@@ -120,6 +121,13 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument(
         "--open", action="store_true", help="open the browser UI once the server is up"
     )
+    serve.add_argument(
+        "--record",
+        default=None,
+        metavar="DIR",
+        help="save each session's audio as a WAV, for working out whether a bad "
+        "transcript came from a bad recording",
+    )
 
     return parser
 
@@ -169,6 +177,7 @@ def _serve(args) -> int:
                 policy=preset(args.policy),
                 backends=_backends(args),
                 max_sessions=args.max_sessions,
+                record=Path(args.record) if args.record else None,
             )
         )
     except KeyboardInterrupt:

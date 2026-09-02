@@ -148,6 +148,7 @@ def commit_payload(
     emitted_at: float,
     speaker: str | None,
     confidence: float,
+    turn: int = 0,
 ) -> dict[str, Any]:
     """Build a commit payload carrying both clocks.
 
@@ -163,4 +164,7 @@ def commit_payload(
         "delay": emitted_at - audio_end,
         "speaker": speaker,
         "confidence": confidence,
+        # Which turn this word belongs to, so a consumer can attach a later
+        # `speaker` event to the right block without tracking turn_start itself.
+        "turn": turn,
     }
