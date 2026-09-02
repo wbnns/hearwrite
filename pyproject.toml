@@ -7,7 +7,10 @@ name = "hearwrite"
 version = "0.1.0.dev0"
 description = "Real-time transcription, speaker labels and endpointing from open-weight models."
 readme = "README.md"
+# PEP 639. The matching "License :: OSI Approved" classifier is deliberately
+# absent: newer packaging tools reject declaring the licence twice.
 license = "MIT"
+license-files = ["LICENSE", "NOTICE"]
 # 3.11.4, not 3.11.0. tarfile.extractall(filter=...) was a security backport
 # that landed in 3.11.4, and model archives are extracted with it. The
 # alternative to requiring it is extracting downloaded tarballs without path
@@ -18,7 +21,6 @@ keywords = ["asr", "streaming", "diarization", "endpointing", "speech"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",

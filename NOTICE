@@ -1,91 +1,151 @@
 HearWrite
 Copyright (c) 2026 wbnns
-Licensed under the MIT License. See LICENSE.
+
+Licensed under the MIT License. The full text is in LICENSE.
+
 
 ================================================================================
-Third-party models
+WHAT THIS FILE IS
 ================================================================================
 
-HearWrite's base install (`pip install hearwrite`) contains no third-party model
-code and downloads no weights. Everything below arrives only with an optional
-extra, and each carries its own terms that you inherit when you use it.
+HearWrite's own code is MIT. It bundles no third party code and redistributes
+no model weights: every model is downloaded, on demand, from its own publisher,
+and verified against a SHA-256 pinned in src/hearwrite/models.py.
 
-This file is the licensing map. It is maintained deliberately, because "which
+That means you inherit each model's terms directly from its publisher when you
+choose to download it. This file records what those terms are, because "which
 licence did that checkpoint have" is exactly the question nobody wants to answer
 after shipping.
 
+Two rules govern what may be added here, and both are enforced by tests:
+
+  1. NOTHING GATED. No model may require an account, an access token, or a
+     licence acceptance. A gated weight means a secret in CI and a file nobody
+     can vendor, which breaks "clone it and run it".
+  2. EVERY ENTRY RECORDS A LICENCE AND A CHECKSUM. No exceptions.
+
+`hearwrite models` prints this information at runtime.
+
+
+================================================================================
+MODELS -- downloaded on demand, never redistributed here
+================================================================================
+
 --------------------------------------------------------------------------------
-hearwrite[onnx] -- the default backend. Permissive, ungated, CPU-only.
+hearwrite[onnx] -- the default. Permissive, ungated, CPU only.
 --------------------------------------------------------------------------------
 
-  sherpa-onnx (k2-fsa)                     Apache-2.0
-    Streaming transducer runtime and the speaker segmentation / embedding
-    models. https://github.com/k2-fsa/sherpa-onnx
+  sherpa-onnx streaming zipformer (k2-fsa)          Apache-2.0
+    Streaming transducer, English. The default recognizer.
+    https://github.com/k2-fsa/sherpa-onnx
 
-  Silero VAD (snakers4/silero-vad)         MIT
-    https://github.com/snakers4/silero-vad
-    NOTE: distinct from `silero-models` (the STT/TTS repo), which is
-    CC-BY-NC-SA. Only the VAD is used here, and it has been MIT throughout.
-
-  nemotron-3.5-asr-streaming-0.6b (NVIDIA) OpenMDW-1.1
-    Optional multilingual streaming checkpoint. Permissive; requires notices to
-    be preserved. https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b
-
-  NeMo TitaNet small (NVIDIA)              CC-BY-4.0   <- attribution required
-    Speaker embeddings, 192 dimensions. Redistributed ungated by sherpa-onnx.
-    The default speaker frontend.
+  NeMo TitaNet small (NVIDIA)                       CC-BY-4.0
+    Speaker embeddings, 192 dimensions. The default speaker frontend.
+    ATTRIBUTION REQUIRED: this notice satisfies it. Redistributed ungated by
+    sherpa-onnx.
     https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models
 
-  WeSpeaker CAM++ (wenet-e2e)              Apache-2.0
-    Alternative speaker embeddings. Not the default: measured separation on
-    real speakers is poor. See docs/evaluation.md.
+  Silero VAD (snakers4)                             MIT
+    The acoustic gate.
+    https://github.com/snakers4/silero-vad
+    NOTE: distinct from `silero-models`, the same author's STT and TTS repo,
+    which is CC-BY-NC-SA. Only the VAD is used here, and it has been MIT since
+    its first commit.
 
-  smart-turn v3.1 (pipecat-ai)             BSD-2-Clause  [code AND weights]
-    Semantic turn detection, the default. Its licence is vendored under
-    src/hearwrite/vendor/smart_turn/. Weights are fetched ungated from the
-    Hugging Face hub and checksummed like every other registry model.
+  smart-turn v3.1 (pipecat-ai / Daily)              BSD-2-Clause
+    Semantic turn detection. The weights AND the code are BSD-2; HearWrite uses
+    only the weights, downloaded at runtime.
+      Copyright (c) 2024-2025, Daily
     https://github.com/pipecat-ai/smart-turn
     NOTE: v3.2 is registered but is NOT the default. Given the feature pipeline
-    both smart-turn's reference and Whisper define, it returns the same
+    that both smart-turn's own reference and Whisper define, it returns the same
     probability for a finished sentence and one cut off mid phrase. See
     docs/evaluation.md.
 
---------------------------------------------------------------------------------
-hearwrite[whisper] -- second engine
---------------------------------------------------------------------------------
+  nemotron-3.5-asr-streaming-0.6b (NVIDIA)          OpenMDW-1.1
+    Optional multilingual streaming recognizer. Permissive; requires notices to
+    be preserved.
+    https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b
 
-  faster-whisper (SYSTRAN)                 MIT
-  CTranslate2 (OpenNMT)                    MIT
-  Whisper checkpoints (OpenAI)             MIT / Apache-2.0
-
-  NOTE: unlike every model in hearwrite.models, these are fetched from the
-  Hugging Face hub by faster-whisper itself. They are ungated and need no
-  token, but HearWrite does not pin their checksums, so the integrity
-  guarantee that covers the rest of the registry does not extend to them.
-  NOTE: faster-whisper has had no commit since 2025-11 and pulls about twenty
-  transitive dependencies. It is the alternative engine, not the default.
+  WeSpeaker CAM++ (wenet-e2e)                       Apache-2.0
+    Alternative speaker embeddings. Registered but not the default: measured
+    separation on real speakers is poor. See docs/evaluation.md.
 
 --------------------------------------------------------------------------------
-hearwrite[sortformer] -- optional diarization backend (needs torch)
+hearwrite[whisper] -- the alternative engine
 --------------------------------------------------------------------------------
 
-  diar_streaming_sortformer_4spk-v2        CC-BY-4.0   <- attribution required
-    Handles at most 4 speakers. NVIDIA.
-    https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2
-    We pin v2 (CC-BY-4.0) rather than v2.1, which is under the NVIDIA Open
-    Model Licence -- commercially usable, but not OSI-approved and carrying a
-    patent-litigation termination clause.
+  Whisper checkpoints (OpenAI)                      MIT
+    Fetched by faster-whisper from the Hugging Face hub, NOT from HearWrite's
+    registry. They are ungated and need no token, but HearWrite does not pin
+    their checksums, so the integrity guarantee covering every model above does
+    not extend to them.
+    https://github.com/openai/whisper
 
-  NeMo (NVIDIA-NeMo/Speech)                Apache-2.0
 
---------------------------------------------------------------------------------
-Deliberately NOT used
---------------------------------------------------------------------------------
+================================================================================
+PYTHON PACKAGES -- ordinary dependencies, not redistributed here
+================================================================================
 
-  pyannote community-1 / 3.1   CC-BY-4.0 and MIT respectively, but gated behind
-                               a Hugging Face acceptance. Gating means a token
-                               in CI and weights that cannot be vendored, which
-                               breaks the "clone and run" property.
-  LiveKit turn-detector        Weights are under the proprietary LiveKit Model
-                               Licence, and the plugin package is deprecated.
-                               smart-turn is used instead.
+The base install (`pip install hearwrite`) has NO dependencies at all. Each
+extra pulls its own; all are permissive and compatible with MIT.
+
+  hearwrite[onnx]      sherpa-onnx                       Apache-2.0
+  hearwrite[turn]      onnxruntime                       MIT
+                       numpy                             BSD-3-Clause
+                       protobuf, flatbuffers             BSD-3-Clause, Apache-2.0
+  hearwrite[server]    websockets                        BSD-3-Clause
+  hearwrite[whisper]   faster-whisper, ctranslate2       MIT
+                       av                                BSD-3-Clause
+                       huggingface-hub, tokenizers       Apache-2.0
+                       certifi, tqdm                     MPL-2.0
+  hearwrite[sortformer] nemo-toolkit                     Apache-2.0
+                       torch                             BSD-3-Clause
+
+Run `pip-licenses` in your own environment for the authoritative list; the above
+is a summary maintained by hand and may lag a release.
+
+
+================================================================================
+ALGORITHMS IMPLEMENTED FROM PUBLISHED DESCRIPTIONS
+================================================================================
+
+  src/hearwrite/features.py implements Whisper's log mel feature extraction
+  (80 mel bins, 400 sample window, hop 160, Slaney scale filterbank, Whisper's
+  particular clamping and rescaling) from its published definition, in numpy.
+  No OpenAI code is copied. The filterbank is verified identical to
+  faster-whisper's independent implementation, and that check is a test.
+
+  src/hearwrite/engines/whisper.py implements LocalAgreement, described in
+  "Turning Whisper into Real-Time Transcription System" (Machacek, Dabre,
+  Bojar, 2023). No code from whisper_streaming or SimulStreaming is copied.
+
+
+================================================================================
+EVALUATION DATA -- not redistributed, not a runtime dependency
+================================================================================
+
+  LibriSpeech dev-clean (OpenSLR)                   CC-BY-4.0
+    Used only to calibrate the speaker threshold and to build diarization and
+    endpointing fixtures. Downloaded on demand by scripts/build_fixtures.py;
+    nothing from it is vendored, shipped, or included in any release.
+    http://www.openslr.org/12
+
+
+================================================================================
+DELIBERATELY NOT USED
+================================================================================
+
+  pyannote community-1 / 3.1        CC-BY-4.0 and MIT respectively, but gated
+                                    behind a Hugging Face acceptance. Gating
+                                    means a token in CI and weights that cannot
+                                    be vendored, which breaks clone-and-run.
+
+  LiveKit turn-detector             Weights are under the proprietary LiveKit
+                                    Model Licence, and the plugin package is
+                                    deprecated. smart-turn is used instead.
+
+  Sortformer v2.1, nemotron-speech  NVIDIA Open Model Licence. Commercially
+  -streaming-en                     usable, but not OSI approved and carrying a
+                                    patent litigation termination clause. Where
+                                    a CC-BY-4.0 sibling exists we pin that one.
