@@ -44,7 +44,12 @@ server = ["websockets>=13.0"]
 # numpy is here so the log mel tests RUN in CI. They are the most safety
 # critical numeric code in the project -- a feature extractor that is quietly
 # wrong degrades accuracy invisibly -- and without numpy they skip silently.
-dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "numpy>=1.24"]
+# numpy and websockets are here so their tests RUN in CI rather than skipping.
+# numpy: the log mel tests are the most safety critical numeric code in the
+# project, and a feature extractor that is quietly wrong degrades accuracy
+# invisibly. websockets: the UI route tests caught three bugs that each returned
+# a plausible looking HTTP response while being wrong.
+dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "numpy>=1.24", "websockets>=13.0"]
 all = ["hearwrite[onnx,turn,whisper,server]"]
 
 [project.scripts]

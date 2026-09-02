@@ -10,6 +10,10 @@ from dataclasses import dataclass
 
 import pytest
 
+# The route builds a websockets Response, so these tests need the library even
+# though they never open a socket. It is in the dev extra for that reason.
+pytest.importorskip("websockets")
+
 from hearwrite.server import app
 
 
