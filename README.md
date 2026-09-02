@@ -105,6 +105,7 @@ src/hearwrite/
   clock.py             audio-relative time; nothing reads the system clock
   protocol.py          wire schema, frozen
   features.py          Whisper style log mel, checked against an independent build
+  pipeline.py          the one place the four models are assembled
   metrics.py           scoring; abstention and error counted apart, never summed
   models.py            model registry: public URLs, pinned checksums, licences
   coordinator/         all state and all policy lives here
@@ -154,7 +155,9 @@ thing CI runs. If it is green locally the pipeline will be green too.
 
 ## Contributing
 
-Issues and PRs welcome. Please run `bin/check` before opening one.
+Issues and PRs welcome. Please run `bin/check` before opening one, and see
+[CONTRIBUTING.md](./CONTRIBUTING.md). Security reports go through
+[SECURITY.md](./SECURITY.md) rather than a public issue.
 
 ## License
 

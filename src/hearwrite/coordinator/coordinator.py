@@ -336,7 +336,13 @@ class Coordinator:
         20ms is pure waste: scoring at frame rate cost nine times the real time
         factor of everything else in the pipeline combined.
         """
-        if self._turn is None or not self._endpoint.wants_completeness:
+        if self._turn is None:
+            # No semantic gate installed, so no semantic objection. The acoustic
+            # side decides alone. Returning 0.0 here instead would veto every
+            # conjunction and leave nothing but the timeout, which is a much
+            # slower endpoint for everyone who has not installed the turn extra.
+            return 1.0
+        if not self._endpoint.wants_completeness:
             return 0.0
         if self._endpoint.silence_held(at) < self.policy.endpoint.silence_seconds:
             return 0.0

@@ -101,6 +101,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=4,
         help="admission limit; never oversubscribe, latency is what users notice",
     )
+    serve.add_argument("--engine", default="sherpa", choices=("sherpa", "whisper"))
+    serve.add_argument("--speaker-model", default="titanet-small")
+    serve.add_argument("--language", default=None)
+    serve.add_argument("--threads", type=int, default=2)
+    serve.add_argument("--no-vad", action="store_true")
+    serve.add_argument("--no-turn", action="store_true")
 
     return parser
 
@@ -139,7 +145,7 @@ def _serve(args) -> int:
                 host=args.host,
                 port=args.port,
                 policy=preset(args.policy),
-                model=args.model,
+                backends=_backends(args),
                 max_sessions=args.max_sessions,
             )
         )
@@ -270,34 +276,28 @@ def _bench(args) -> int:
     return 0
 
 
-def _build_engine(args):
-    """Whichever engine was asked for. The Coordinator cannot tell them apart."""
-    if getattr(args, "engine", "sherpa") == "whisper":
-        from .engines.whisper import WhisperStreamingEngine
+def _backends(args):
+    """Turn parsed arguments into a backend selection."""
+    from .pipeline import Backends
 
-        return WhisperStreamingEngine.from_model(
-            args.model or "base",
-            num_threads=args.threads,
-            language=getattr(args, "language", None),
-        )
-    from .engines.sherpa import SherpaStreamingEngine
-
-    return SherpaStreamingEngine.from_model(args.model or "zipformer-en", num_threads=args.threads)
+    return Backends(
+        engine=getattr(args, "engine", "sherpa"),
+        model=getattr(args, "model", None),
+        speaker_model=getattr(args, "speaker_model", "titanet-small"),
+        language=getattr(args, "language", None),
+        threads=getattr(args, "threads", 2),
+        vad=not getattr(args, "no_vad", False),
+        turn=not getattr(args, "no_turn", False),
+    )
 
 
 def _run_pipeline(args, policy, pcm):
-    """Build the real pipeline and run PCM through it. Shared by transcribe and bench."""
+    """Build the real pipeline and run PCM through it. Shared by two commands."""
     from . import audio
-    from .vad.silero import SileroVAD
+    from .pipeline import build
 
-    engine = _build_engine(args)
-    vad = SileroVAD.from_model()
-    speakers = None
-    if not policy.is_solo:
-        from .speakers.sherpa import SherpaSpeakerFrontend
-
-        speakers = SherpaSpeakerFrontend.from_model(args.speaker_model, num_threads=args.threads)
-    coordinator = Coordinator(policy, engine=engine, vad=vad, speakers=speakers)
+    components = build(policy, _backends(args))
+    coordinator = Coordinator(policy, **components.as_kwargs())
 
     started = time.perf_counter()
     events: list[Event] = []
@@ -318,29 +318,10 @@ def _transcribe(args) -> int:
         print(f"hearwrite transcribe: {exc}", file=sys.stderr)
         return 2
 
-    from .vad.silero import SileroVAD
-
     policy = preset(args.policy)
     try:
-        engine = _build_engine(args)
-        vad = None if args.no_vad else SileroVAD.from_model()
-        turn = None
-        if not args.no_turn:
-            from .turn.smart_turn import SmartTurnDetector
-
-            turn = SmartTurnDetector.from_model()
-        # Solo mode skips the frontend entirely, so do not even build it.
-        speakers = None
-        if not policy.is_solo:
-            from .speakers.sherpa import SherpaSpeakerFrontend
-
-            speakers = SherpaSpeakerFrontend.from_model(
-                args.speaker_model, num_threads=args.threads
-            )
+        coordinator, events, elapsed = _run_pipeline(args, policy, pcm)
     except ImportError:
-        # sherpa-onnx is imported lazily inside from_model, so a missing backend
-        # surfaces here rather than at module import. This is the first command
-        # anyone runs; it must not answer with a traceback.
         print(f"hearwrite transcribe: {_MISSING_BACKEND}", file=sys.stderr)
         return 1
     except UnknownModel as exc:
@@ -349,15 +330,6 @@ def _transcribe(args) -> int:
     except ModelError as exc:
         print(f"hearwrite transcribe: {exc}", file=sys.stderr)
         return 1
-
-    coordinator = Coordinator(policy, engine=engine, vad=vad, speakers=speakers, turn=turn)
-
-    started = time.perf_counter()
-    events: list[Event] = []
-    for chunk in audio.chunks(pcm, args.chunk):
-        events.extend(coordinator.push(chunk))
-    events.extend(coordinator.finish())
-    elapsed = time.perf_counter() - started
     seconds = audio.duration(pcm)
 
     if args.json:

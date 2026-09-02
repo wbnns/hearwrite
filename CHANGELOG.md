@@ -5,6 +5,38 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed -- the entrances had drifted
+
+**The WebSocket service had been running without diarization or a semantic
+gate.** It was written in Phase 1a and never updated, so `serve --policy
+conversation` quietly delivered no speaker labels and no semantic endpointing
+while `transcribe` delivered both on the same audio. Nothing ever failed;
+the output was simply worse over one entrance than the other. Both now call a
+single `hearwrite.pipeline.build`, and a test asserts the server constructs no
+components of its own.
+
+**`requires-python` claimed 3.11 and meant 3.11.4.** Model archives are
+extracted with `tarfile`'s `data` filter, a security backport that landed in
+3.11.4; on 3.11.0 through 3.11.3 the call raises TypeError. The floor is now
+honest, and extraction refuses to run without the filter rather than falling
+back to unprotected extraction.
+
+**The log mel tests were skipping in CI.** numpy was not in the `dev` extra, so
+the most safety critical numeric code in the project -- a feature extractor that
+is quietly wrong degrades accuracy invisibly -- was never exercised by the
+pipeline that is supposed to catch that. numpy is now a dev dependency, and the
+filterbank has a checked in golden reference so the check runs without pulling
+faster-whisper in.
+
+### Added
+
+`CODE_OF_CONDUCT.md` and `SECURITY.md`. The security policy is specific about
+what is actually worth reporting: checksum bypass, archive extraction escapes,
+and the WebSocket service. It is equally specific that the absence of
+authentication on the audio path is a documented design decision, not a bug.
+
+Verified on Python 3.11.15 as well as 3.14: 169 tests green on both.
+
 ### Added -- Phase 3: it knows when you have finished
 
 **Semantic endpointing.** smart-turn v3.1 closes the gap an acoustic VAD cannot:

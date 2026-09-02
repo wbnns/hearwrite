@@ -260,6 +260,15 @@ def _verify(blob: Path, spec: ModelSpec) -> None:
 def _extract(blob: Path, workdir: Path, target: Path) -> None:
     staging = workdir / "staged"
     staging.mkdir()
+    if not hasattr(tarfile, "data_filter"):
+        # Reachable only if someone installed past the requires-python floor.
+        # There is deliberately no fallback: extracting a downloaded archive
+        # without the filter is how a tarball writes outside its directory.
+        raise ModelError(
+            "this Python is too old to extract archives safely.\n"
+            "tarfile's 'data' filter arrived in 3.11.4; upgrade before "
+            "downloading models."
+        )
     with tarfile.open(blob) as tar:
         # filter="data" refuses absolute paths, parent traversal and device
         # nodes. Extracting a downloaded archive without it is how a tarball

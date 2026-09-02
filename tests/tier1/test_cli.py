@@ -113,3 +113,23 @@ def test_every_attribute_the_code_reads_is_registered(command, attributes):
 def test_missing_file_is_a_usage_error(capsys):
     assert main(["transcribe", "/nonexistent/file.wav"]) == 2
     assert "no such file" in capsys.readouterr().err
+
+
+def test_archive_extraction_refuses_an_unsafe_python():
+    """No fallback path may extract a downloaded tarball without the filter.
+
+    tarfile's 'data' filter refuses absolute paths, parent traversal and device
+    nodes. It arrived in Python 3.11.4, which is why requires-python says
+    3.11.4 rather than 3.11. If someone installs past that floor anyway, the
+    download must fail loudly rather than quietly extract without protection.
+    """
+    import tarfile
+
+    from hearwrite import models
+
+    assert hasattr(tarfile, "data_filter"), (
+        "this interpreter predates the tarfile security backport"
+    )
+    source = __import__("inspect").getsource(models._extract)
+    assert 'filter="data"' in source
+    assert "ModelError" in source, "there is no guard for an interpreter without it"

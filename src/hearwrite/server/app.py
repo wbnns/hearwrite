@@ -22,6 +22,7 @@ import asyncio
 import sys
 
 from ..coordinator import Policy, preset
+from ..pipeline import Backends, build
 from ..protocol import encode, hello_frame
 from .session import Admission, Rejected, Session
 
@@ -33,10 +34,8 @@ async def serve(
     host: str = "127.0.0.1",
     port: int = 8080,
     policy: Policy | None = None,
-    model: str = "zipformer-en",
+    backends: Backends | None = None,
     max_sessions: int = DEFAULT_MAX_SESSIONS,
-    build_engine=None,
-    build_vad=None,
 ) -> None:
     try:
         import websockets
@@ -46,19 +45,8 @@ async def serve(
         ) from exc
 
     policy = policy or preset("dictation")
+    backends = backends or Backends()
     admission = Admission(max_sessions)
-
-    if build_engine is None:
-        from ..engines.sherpa import SherpaStreamingEngine
-
-        def build_engine():
-            return SherpaStreamingEngine.from_model(model)
-
-    if build_vad is None:
-        from ..vad.silero import SileroVAD
-
-        def build_vad():
-            return SileroVAD.from_model()
 
     async def handler(websocket) -> None:
         try:
@@ -67,27 +55,32 @@ async def serve(
             await websocket.close(code=1013, reason=str(exc))
             return
         try:
-            await _run_session(websocket, policy, build_engine, build_vad)
+            await _run_session(websocket, policy, backends)
         finally:
             admission.release()
 
     async with websockets.serve(handler, host, port, max_size=None):
+        speakers = "solo" if policy.is_solo else "auto"
         print(
             f"hearwrite: listening on ws://{host}:{port} "
-            f"(policy {policy.speakers.mode}/{policy.endpoint.silence_seconds}s, "
+            f"(engine {backends.engine}, speakers {speakers}, "
+            f"semantic gate {'on' if backends.turn else 'off'}, "
             f"max {max_sessions} sessions)",
             file=sys.stderr,
         )
         await asyncio.Future()
 
 
-async def _run_session(websocket, policy, build_engine, build_vad) -> None:
+async def _run_session(websocket, policy, backends) -> None:
     loop = asyncio.get_running_loop()
-    # Model construction touches disk and can take a second; keep it off the
-    # event loop so one connecting client does not stall the others.
-    engine = await loop.run_in_executor(None, build_engine)
-    vad = await loop.run_in_executor(None, build_vad)
-    session = Session(policy, engine=engine, vad=vad)
+    # Building the pipeline touches disk and can take a second, so keep it off
+    # the event loop: one connecting client must not stall the others.
+    #
+    # It goes through the SAME builder the CLI uses. When it did not, the server
+    # silently ran without diarization or a semantic gate for two whole phases,
+    # because nothing fails when a pipeline is merely worse.
+    components = await loop.run_in_executor(None, build, policy, backends)
+    session = Session(policy, **components.as_kwargs())
 
     await websocket.send(
         hello_frame(sample_rate=policy.sample_rate, policy=str(policy.speakers.mode))

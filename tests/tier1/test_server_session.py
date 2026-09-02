@@ -75,3 +75,54 @@ def test_lag_does_not_reach_any_timestamp():
     # be if wall clock time had leaked in anywhere.
     for event in events:
         assert abs(event.at * 50 - round(event.at * 50)) < 1e-6, event
+
+
+# -- the server must not drift from the CLI ----------------------------------
+
+
+def test_the_server_builds_its_pipeline_through_the_shared_builder():
+    """The server ran without diarization or a semantic gate for two phases.
+
+    Nothing failed. It was written before either existed and was never updated,
+    so `serve --policy conversation` quietly delivered a worse pipeline than
+    `transcribe` did on the same audio. Both entrances now call one builder, and
+    this is what stops them separating again.
+    """
+    import inspect
+
+    from hearwrite.server import app
+
+    source = inspect.getsource(app)
+    assert "from ..pipeline import" in source, "the server builds its own pipeline"
+    assert "components.as_kwargs()" in source, (
+        "the server does not hand the built components to its Session"
+    )
+
+    # And it must not construct components directly any more.
+    for constructed in ("SherpaStreamingEngine", "SileroVAD", "SmartTurnDetector"):
+        assert constructed not in source, f"the server still constructs {constructed} itself"
+
+
+def test_the_builder_skips_the_speaker_frontend_in_solo_mode():
+    """Solo does not merely ignore the frontend, it never builds it."""
+    import inspect
+
+    from hearwrite import pipeline
+
+    source = inspect.getsource(pipeline.build)
+    assert "policy.is_solo" in source
+
+
+def test_backends_defaults_match_the_cli_defaults():
+    """A default that differs between entrances is the same drift in miniature."""
+    from hearwrite.cli import build_parser
+    from hearwrite.pipeline import Backends
+
+    defaults = Backends()
+    for command in ("transcribe", "serve"):
+        argv = [command] + (["x"] if command == "transcribe" else [])
+        args = build_parser().parse_args(argv)
+        assert args.engine == defaults.engine
+        assert args.speaker_model == defaults.speaker_model
+        assert args.threads == defaults.threads
+        assert args.no_turn is False

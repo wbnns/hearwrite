@@ -31,8 +31,27 @@ def test_filterbank_shape_and_positivity():
     assert (filters.sum(axis=1) > 0).all(), "a mel filter is entirely empty"
 
 
+def test_filterbank_matches_the_checked_in_reference():
+    """A golden reference, so this runs in CI without a heavy dependency.
+
+    The values were generated from the implementation on the day it was verified
+    against faster-whisper's independent one (identical to 0.0). Storing the
+    result means an accidental change to the filterbank fails here rather than
+    silently costing accuracy nobody measures.
+    """
+    import json
+    from pathlib import Path
+
+    reference = json.loads((Path(__file__).parent / "mel_filters_reference.json").read_text())
+    filters = mel_filters()
+    assert list(filters.shape) == reference["shape"]
+    assert np.allclose(filters.sum(axis=1), reference["row_sums"], atol=1e-8)
+    assert list(filters.argmax(axis=1)) == reference["peak_bins"]
+    assert abs(float(filters.sum()) - reference["total"]) < 1e-6
+
+
 def test_filterbank_matches_an_independent_implementation():
-    """faster-whisper computes the same bank from the same definition."""
+    """The check the golden reference was generated from. Runs when available."""
     fw = pytest.importorskip("faster_whisper.feature_extractor")
     theirs = fw.FeatureExtractor(
         feature_size=80, sampling_rate=16000, hop_length=160, chunk_length=8, n_fft=400

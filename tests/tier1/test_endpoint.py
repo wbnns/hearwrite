@@ -204,3 +204,39 @@ def test_the_detector_receives_audio_not_just_text():
     drive(coord, 4.0)
     assert detector.audio_lengths, "the detector was never called"
     assert max(detector.audio_lengths) > 0, "the detector was handed no audio"
+
+
+def test_without_a_turn_detector_the_acoustic_gate_decides_alone():
+    """No semantic gate means no semantic objection, not a permanent veto.
+
+    This regressed once: a throttle added to avoid running the detector at frame
+    rate returned "incomplete" when there was no detector at all, so every
+    endpoint fell through to the timeout and nobody without the turn extra ever
+    got a prompt one. Tier 1 had no test for the no-detector path.
+    """
+    coord = Coordinator(
+        DICTATION,
+        engine=ScriptedEngine(
+            script={1.0: Hypothesis(stable=words("done.", each=0.4), consumed_to=1.0)}
+        ),
+        vad=ScriptedVAD(speech=((0.0, 1.0),)),
+        turn=None,
+    )
+    events = drive(coord, 4.0)
+    reasons = [e.payload["reason"] for e in events if e.kind == "endpoint"]
+    assert "complete" in reasons, f"only the timeout fired: {reasons}"
+
+
+def test_without_a_turn_detector_the_endpoint_is_not_late():
+    """The acoustic threshold should decide it, not the timeout ceiling."""
+    coord = Coordinator(
+        DICTATION,  # silence 1.0s, timeout 4.0s
+        engine=ScriptedEngine(
+            script={1.0: Hypothesis(stable=words("done.", each=0.4), consumed_to=1.0)}
+        ),
+        vad=ScriptedVAD(speech=((0.0, 1.0),)),
+        turn=None,
+    )
+    events = drive(coord, 6.0)
+    first = next(e for e in events if e.kind == "endpoint")
+    assert first.at < 3.0, f"endpoint at {first.at}s looks like the timeout"

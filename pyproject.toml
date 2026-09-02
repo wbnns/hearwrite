@@ -8,7 +8,11 @@ version = "0.1.0.dev0"
 description = "Real-time transcription, speaker labels and endpointing from open-weight models."
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.11"
+# 3.11.4, not 3.11.0. tarfile.extractall(filter=...) was a security backport
+# that landed in 3.11.4, and model archives are extracted with it. The
+# alternative to requiring it is extracting downloaded tarballs without path
+# traversal protection, which is not an alternative.
+requires-python = ">=3.11.4"
 authors = [{ name = "wbnns" }]
 keywords = ["asr", "streaming", "diarization", "endpointing", "speech"]
 classifiers = [
@@ -35,7 +39,10 @@ whisper = ["faster-whisper>=1.2"]
 # The only extra that needs torch. Keep it isolated.
 sortformer = ["nemo-toolkit[asr]>=3.0", "torch>=2.4"]
 server = ["websockets>=13.0"]
-dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11"]
+# numpy is here so the log mel tests RUN in CI. They are the most safety
+# critical numeric code in the project -- a feature extractor that is quietly
+# wrong degrades accuracy invisibly -- and without numpy they skip silently.
+dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "numpy>=1.24"]
 all = ["hearwrite[onnx,turn,whisper,server]"]
 
 [project.scripts]

@@ -83,6 +83,7 @@ To add, say, a new ASR engine:
 | How speakers are discovered and aligned | `src/hearwrite/coordinator/speakers.py` |
 | When an utterance has ended | `src/hearwrite/coordinator/endpoint.py` |
 | What happens under load | `src/hearwrite/coordinator/backpressure.py` |
+| How the four models get assembled | `src/hearwrite/pipeline.py` |
 | Which model has which licence | `NOTICE` |
 
 ## What is already built (don't rebuild it)
@@ -131,6 +132,17 @@ Window length is part of the same calibration. Same speaker similarity climbs
 with window length while different speaker similarity stays flat, so a short
 window looks unlike itself. That is why windows are a fixed 2s and anything
 under 1.5s is not embedded at all.
+
+## There is one pipeline builder, and both entrances use it
+
+`hearwrite.pipeline.build` is the only place the four models are assembled.
+Never construct an engine, VAD, speaker frontend or turn detector anywhere else.
+
+This is not tidiness. The CLI and the WebSocket service each used to build their
+own, and they drifted: the server predated diarization and semantic endpointing
+and was never updated, so `serve --policy conversation` ran without either for
+two whole phases. Nothing failed. The output was just worse over one entrance
+than the other, which is the kind of bug that survives a long time.
 
 ## The commit frontier admits no holes
 
