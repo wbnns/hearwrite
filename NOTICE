@@ -31,6 +31,15 @@ hearwrite[onnx] -- the default backend. Permissive, ungated, CPU-only.
     Optional multilingual streaming checkpoint. Permissive; requires notices to
     be preserved. https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b
 
+  NeMo TitaNet small (NVIDIA)              CC-BY-4.0   <- attribution required
+    Speaker embeddings, 192 dimensions. Redistributed ungated by sherpa-onnx.
+    The default speaker frontend.
+    https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models
+
+  WeSpeaker CAM++ (wenet-e2e)              Apache-2.0
+    Alternative speaker embeddings. Not the default: measured separation on
+    real speakers is poor. See docs/evaluation.md.
+
   smart-turn v3 (pipecat-ai)               BSD-2-Clause  [code AND weights]
     Semantic turn detection. Vendored under src/hearwrite/vendor/, with its
     LICENSE alongside. https://github.com/pipecat-ai/smart-turn

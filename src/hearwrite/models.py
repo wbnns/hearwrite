@@ -57,6 +57,9 @@ class ModelSpec:
     sha256: str | None = None
     #: True for a single file, False for a tarball that needs extracting.
     single_file: bool = False
+    #: Cache filename. Needed when the URL is percent encoded, so that the file
+    #: on disk keeps the name the model is actually known by.
+    filename: str = ""
     #: Globs, relative to the extracted directory, in preference order.
     encoder: tuple[str, ...] = ()
     decoder: tuple[str, ...] = ()
@@ -96,6 +99,37 @@ REGISTRY: dict[str, ModelSpec] = {
         encoder=("encoder-*.int8.onnx",),
         decoder=("decoder-*.int8.onnx",),
         joiner=("joiner-*.int8.onnx",),
+    ),
+    "titanet-small": ModelSpec(
+        name="titanet-small",
+        url=(
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/"
+            "speaker-recongition-models/nemo_en_titanet_small.onnx"
+        ),
+        licence="CC-BY-4.0",
+        languages="en",
+        approx_mb=38,
+        summary="NeMo TitaNet speaker embeddings, 192 dimensions. The default.",
+        sha256="ad4a1802485d8b34c722d2a9d04249662f2ece5d28a7a039063ca22f515a789e",
+        single_file=True,
+    ),
+    # Kept as an alternative, not the default. Measured on 40 LibriSpeech
+    # speakers with 2s windows, its embeddings sit at 0.78 cosine BETWEEN
+    # different speakers, so no threshold separates them cleanly. TitaNet puts
+    # different speakers at 0.06 and gets under 1% error on the same data.
+    "wespeaker-en": ModelSpec(
+        name="wespeaker-en",
+        url=(
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/"
+            "speaker-recongition-models/wespeaker_en_voxceleb_CAM%2B%2B.onnx"
+        ),
+        licence="Apache-2.0",
+        languages="en",
+        approx_mb=28,
+        summary="WeSpeaker CAM++ embeddings, 512 dimensions. Weak separation.",
+        sha256="c46fad10b5f81e1aa4a60c162714208577093655076c5450f8c469e522ec54ef",
+        single_file=True,
+        filename="wespeaker_en_voxceleb_CAM++.onnx",
     ),
     "silero-vad": ModelSpec(
         name="silero-vad",
@@ -140,7 +174,10 @@ def resolve(name_or_path: str, *, download: bool = True) -> Path:
 def ensure(spec: ModelSpec, *, download: bool = True) -> Path:
     """Return the local path for a spec, downloading it if needed."""
     root = cache_root()
-    target = root / (Path(spec.url).name if spec.single_file else spec.name)
+    # A percent encoded URL must not decide the name on disk, so single file
+    # specs may override it.
+    name = (spec.filename or Path(spec.url).name) if spec.single_file else spec.name
+    target = root / name
     if target.exists():
         return target
 

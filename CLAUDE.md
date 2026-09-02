@@ -96,13 +96,33 @@ To add, say, a new ASR engine:
 - Scripted fakes for all four model layers.
 - **The sherpa-onnx transducer engine and the ONNX Silero VAD**, both working on
   CPU. `src/hearwrite/models.py` resolves, downloads and checksums weights.
+- **The speaker frontend** (`src/hearwrite/speakers/sherpa.py`) and the metrics
+  module, plus `hearwrite bench`. Diarization works end to end.
 - **The WebSocket service** with admission control, in `src/hearwrite/server/`.
 - `hearwrite demo | policies | models | transcribe | serve`.
 - 86 Tier 1 tests and 11 Tier 2 tests, `bin/check`, CI.
 
-**Not built yet:** the speaker frontend and everything diarization (Phase 1b),
-the faster-whisper second engine (Phase 1c), and semantic endpointing (Phase 3).
-`conversation` policy therefore labels everything as one speaker today.
+**Not built yet:** the faster-whisper second engine (Phase 1c) and semantic
+endpointing (Phase 3). The endpoint gate currently runs acoustic only, because
+no turn detector is wired in.
+
+## The clustering threshold is calibration, not taste
+
+`SpeakerPolicy.threshold` is a property of the EMBEDDING MODEL, not of speech.
+It was measured on 40 LibriSpeech speakers and the numbers live in
+`docs/evaluation.md`. Two consequences:
+
+- **Change the embedding model and the threshold is wrong**, silently. Redo the
+  measurement. `test_defaults_match_the_measured_calibration` is the tripwire.
+- **Never calibrate on synthetic speech.** The first attempt used macOS `say`
+  voices and was worthless: the same voice reading different text scored 0.54
+  while two different voices reading the same text scored 0.83. The embedding
+  was tracking the words, not the speaker.
+
+Window length is part of the same calibration. Same speaker similarity climbs
+with window length while different speaker similarity stays flat, so a short
+window looks unlike itself. That is why windows are a fixed 2s and anything
+under 1.5s is not embedded at all.
 
 ## Three things about the real engine that cost us bugs
 

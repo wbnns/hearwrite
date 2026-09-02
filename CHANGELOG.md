@@ -5,6 +5,63 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added -- Phase 1b: it hears who is talking
+
+**Online speaker labels, with no fixed speaker count.** A speaker frontend built
+on TitaNet embeddings feeds the incremental clustering that was written in Phase
+0. Measured on LibriSpeech speakers: the count is discovered exactly at 2, 4, 8,
+16 and 24 speakers, with word level confusion from 3.1% to 7.6% and a null rate
+under 1%. Read docs/evaluation.md before trusting those numbers -- the corpus is
+clean read speech with a pause at every turn and no overlap, which is much
+easier than real conversation.
+
+**A threshold that was measured rather than chosen.** The clustering threshold
+is a property of the embedding model, so it was calibrated on 40 real speakers
+and the measurement is written down next to the constant. Same speaker
+similarity is 0.69 and different speaker similarity 0.06 at a 2s window, giving
+under 1% error at a threshold of 0.40.
+
+**`hearwrite bench`**, and a metrics module that reports abstention and error
+separately. A word the clustering declined to label and a word it labelled
+wrongly are different outcomes with different costs, and folding them into one
+number would make a system that abstains look identical to one that guesses.
+
+**`scripts/build_fixtures.py`**, which assembles multi speaker conversations
+with known turn boundaries from LibriSpeech. The corpus is downloaded on demand
+and nothing from it is vendored.
+
+### Changed
+
+**TitaNet replaced WeSpeaker as the default embedding model**, on measurement
+rather than reputation. WeSpeaker CAM++ and 3D-Speaker CAM++ both place
+*different* speakers at 0.74 to 0.78 cosine, where no threshold separates them;
+TitaNet places them at 0.06. WeSpeaker stays available and the registry says why
+it is not the default.
+
+**Speaker regions now survive a short pause, and windows are emitted during
+speech rather than at the end of a turn.** The first version closed a region at
+the first quiet frame, which fragmented ordinary speech into pieces too short to
+embed and left 87% of words unlabelled. It also waited for a turn to finish
+before emitting anything, which would have made turn label latency scale with
+turn length.
+
+**A word in a gap between segments borrows a label from its neighbours**, unless
+the neighbours disagree, in which case it sits on a speaker change and gets no
+label. Speech regions never tile the timeline perfectly, and committing null for
+want of a window was costing 22% of words.
+
+### Known limitations
+
+**Turn label latency misses its target.** The design doc asked for p90 under
+1.5s; measured p90 is 2.2s to 4.1s. A label cannot exist before a 2s embedding
+window has closed, so this is a floor set by the window length, and shorter
+windows trade it directly against accuracy.
+
+**Speaker changes are localised to a window, not to the instant.** sherpa-onnx
+does not expose its segmentation model on its own, so the frontend cuts on voice
+activity plus a fixed window. A change with no pause is caught at window
+granularity.
+
 ### Added -- Phase 1a: it transcribes
 
 **A working streaming pipeline on CPU.** sherpa-onnx transducer, ONNX Silero

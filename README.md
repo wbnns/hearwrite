@@ -19,14 +19,25 @@ torch, no gated downloads, no licence to accept before you can try it.
 
 ## Status
 
-Early, but it runs. Streaming ASR, endpointing, the WebSocket service and the
-CLI work today on CPU. Speaker diarization is the next piece and is not built
-yet, so `conversation` policy currently labels everything as one speaker. See
+Early, but it runs. Streaming ASR, online speaker labels, endpointing, the
+WebSocket service and the CLI all work today on CPU. See
 [CHANGELOG.md](./CHANGELOG.md) for what is actually done rather than what is
 planned.
 
-Measured on an M-series Mac, CPU only, with `zipformer-en`: **p50 emission delay
-0.40s, p90 0.60s, real time factor 0.03**.
+Measured on Apple silicon, CPU only:
+
+| | |
+|---|---|
+| Emission delay | p50 **0.40s**, p90 **0.60s** |
+| Real time factor | **0.03** |
+| Speaker confusion | **3.1%** at 2 speakers, **7.6%** at 24 |
+| Speaker count | discovered, exact at 2, 4, 8, 16 and 24 |
+
+**Read the caveats before trusting those diarization numbers.** They are on
+clean read speech with a pause at every turn boundary and no overlap, which is
+much easier than real conversation, and they are not comparable to a published
+DER. [docs/evaluation.md](./docs/evaluation.md) says what the numbers do and do
+not mean, and where they miss their target.
 
 ## The one rule
 
@@ -66,6 +77,9 @@ correct, complete transcript. That is what lets a simple integration stay simple
 
 ## Speakers
 
+Nothing tells HearWrite how many people are talking. The count is discovered,
+and it was exact at every size tested up to 24 speakers.
+
 `speakers=SOLO` skips the speaker frontend entirely. Not "clustering with one
 cluster" -- the models never run. Diarizing a single voice occasionally splits
 that person into two labels, which is worse than making no distinction, and it
@@ -77,7 +91,8 @@ committed speaker label can never be corrected, the clustering abstains rather
 than guesses: an ambiguous segment produces `speaker: null` and a later `speaker`
 event fills it in once the identity is unambiguous.
 
-We do not publish a supported speaker count. We publish the measured curve.
+We do not publish a supported speaker count. We publish
+[the measured curve](./docs/evaluation.md), including where it misses.
 
 ## Layout
 
@@ -86,6 +101,8 @@ src/hearwrite/
   events.py            the append-only event log
   clock.py             audio-relative time; nothing reads the system clock
   protocol.py          wire schema, frozen
+  metrics.py           diarization scoring; abstention counted apart from error
+  models.py            model registry: public URLs, pinned checksums, licences
   coordinator/         all state and all policy lives here
     commit.py            what text is final, and when
     speakers.py          online clustering and word-to-speaker alignment
@@ -116,7 +133,9 @@ To actually transcribe something:
 .venv/bin/pip install -e '.[onnx,server]'
 hearwrite models                            # what is available, and its licence
 hearwrite transcribe recording.wav          # 16kHz mono WAV; downloads on first use
+hearwrite transcribe meeting.wav --policy conversation   # with speaker labels
 hearwrite serve --port 8080                 # WebSocket: binary PCM up, JSON down
+hearwrite bench fixture.wav                 # score diarization against ground truth
 ```
 
 Tier 2 exercises the real models and is opt in, because it needs weights on disk:

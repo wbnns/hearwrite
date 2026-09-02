@@ -148,10 +148,17 @@ class SpeakerTracker:
         return Assignment(segment, best.label, "")
 
     def label_for(self, start: float, end: float) -> str | None:
-        """Label a word by the segment it overlaps most.
+        """Label a word by the segment it overlaps most, or by its neighbours.
 
         A word straddling a boundary belongs to whichever speaker was talking for
-        more of it. A word overlapping nothing is unlabeled, not guessed.
+        more of it. A word overlapping nothing falls back to the segments either
+        side of the hole, because speech regions do not tile the timeline: a tail
+        too short to embed leaves a gap, and the words in it are almost always
+        the same speaker as the audio around them.
+
+        The fallback refuses exactly one case, which is the case that matters:
+        if the segments before and after disagree, the word sits on a speaker
+        change and gets no label at all.
         """
         best_label: str | None = None
         best_overlap = 0.0
@@ -164,9 +171,32 @@ class SpeakerTracker:
             if overlap > best_overlap:
                 best_overlap = overlap
                 best_label = label
-        if best_label is None:
-            return None
-        return self.resolve(best_label)
+        if best_label is not None:
+            return self.resolve(best_label)
+        return self._label_from_neighbours(start, end)
+
+    def _label_from_neighbours(self, start: float, end: float) -> str | None:
+        gap = self._policy.max_gap
+        before: str | None = None
+        after: str | None = None
+        for seg_start, seg_end, label in self._resolved:
+            if seg_end <= start:
+                if start - seg_end <= gap:
+                    before = label
+                continue
+            if seg_start >= end:
+                if seg_start - end <= gap:
+                    after = label
+                break
+        if before is not None:
+            before = self.resolve(before)
+        if after is not None:
+            after = self.resolve(after)
+        if before is not None and after is not None:
+            # Disagreement means this word sits on a speaker change. Guessing
+            # here is exactly the mistake the append-only rule makes permanent.
+            return before if before == after else None
+        return before or after
 
     def resolve(self, label: str) -> str:
         """Follow any merges this label has been through."""

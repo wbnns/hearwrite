@@ -58,13 +58,26 @@ class SpeakerPolicy:
 
     mode: SpeakerMode = SpeakerMode.AUTO
     #: A segment joins a cluster only if cosine similarity clears this.
-    threshold: float = 0.70
+    #: Calibrated on 40 LibriSpeech speakers with TitaNet embeddings over 1.5 to
+    #: 3 second windows: different speakers sit at about 0.06 cosine, the same
+    #: speaker at 0.62 to 0.76. At 0.40 the measured error is under 0.6% merges
+    #: and under 2.5% splits. Retune this if you change the embedding model --
+    #: the right value is a property of the model, not of speech.
+    threshold: float = 0.40
     #: ...AND beats the runner-up cluster by this margin. Without the margin,
     #: two similar voices ping-pong between labels; with it, an ambiguous
     #: segment abstains and commits `speaker: null` instead of guessing.
-    margin: float = 0.06
+    margin: float = 0.10
     #: Segments shorter than this give embeddings too noisy to cluster on.
-    min_duration: float = 0.40
+    #: See MIN_REGION in speakers/sherpa.py for the measurements behind it.
+    min_duration: float = 1.5
+    #: How far a word may reach to borrow a label from a nearby segment.
+    #: Speech regions never tile the timeline perfectly -- a tail too short to
+    #: embed leaves a hole -- so a word inside a homogeneous stretch takes the
+    #: surrounding speaker rather than committing null for want of a window.
+    #: Reaching across a stretch where the neighbours DISAGREE is the one case
+    #: this must not do, and does not.
+    max_gap: float = 2.0
     #: Embeddings retained per cluster. Bounds memory over long sessions and
     #: lets the centroid be recomputed robustly instead of drifting toward
     #: whoever spoke most recently.

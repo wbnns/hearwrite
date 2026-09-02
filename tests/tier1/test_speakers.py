@@ -25,6 +25,14 @@ C = embedding(0.0, 0.0, 1.0)
 
 
 def tracker(**kw):
+    """A tracker for testing CLUSTERING, not the duration policy.
+
+    These tests use short fixture segments, so the minimum duration is relaxed
+    unless a test is specifically about it. Coupling every clustering test to
+    the production default would mean recalibrating the embedding model breaks
+    twenty unrelated assertions.
+    """
+    kw.setdefault("min_duration", 0.4)
     return SpeakerTracker(SpeakerPolicy(**kw))
 
 
@@ -72,7 +80,7 @@ def test_overlap_is_detected_not_separated():
 
 
 def test_short_segments_are_not_clustered():
-    """Sub-threshold segments give embeddings too noisy to trust."""
+    """Segments below the minimum give embeddings too noisy to trust."""
     t = tracker(min_duration=0.4)
     result = t.assign(seg(0.0, 0.1, A))
     assert result.label is None
@@ -179,6 +187,20 @@ def test_centroid_is_not_captured_by_one_long_turn():
 
 def test_cosine_handles_a_zero_vector():
     assert cosine(embedding(0.0), embedding(1.0)) == 0.0
+
+
+def test_defaults_match_the_measured_calibration():
+    """The shipped defaults are what the LibriSpeech calibration produced.
+
+    Measured over 40 real speakers with TitaNet embeddings: different speakers
+    sit at about 0.06 cosine, the same speaker at 0.62 to 0.76 for windows of
+    1.5s and up. If someone changes the embedding model without redoing that
+    measurement, this test is the reminder that the numbers travel together.
+    """
+    p = SpeakerPolicy()
+    assert p.threshold == 0.40
+    assert p.margin == 0.10
+    assert p.min_duration == 1.5
 
 
 def test_cosine_matches_the_definition():

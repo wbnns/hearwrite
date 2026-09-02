@@ -51,12 +51,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     transcribe.add_argument("path")
     transcribe.add_argument("--policy", default="dictation", choices=sorted(PRESETS))
     transcribe.add_argument("--model", default="zipformer-en")
+    transcribe.add_argument("--speaker-model", default="titanet-small")
     transcribe.add_argument("--chunk", type=float, default=0.02)
     transcribe.add_argument("--threads", type=int, default=2)
     transcribe.add_argument("--json", action="store_true", help="emit the raw event log")
     transcribe.add_argument("--no-vad", action="store_true", help="skip the acoustic gate")
 
     sub.add_parser("models", help="list known models and their licences")
+
+    bench = sub.add_parser("bench", help="score diarization against a labelled fixture")
+    bench.add_argument("path", help="WAV file with a sibling .json of ground truth")
+    bench.add_argument("--policy", default="conversation", choices=sorted(PRESETS))
+    bench.add_argument("--speaker-model", default="titanet-small")
+    bench.add_argument("--model", default="zipformer-en")
+    bench.add_argument("--threads", type=int, default=2)
 
     serve = sub.add_parser("serve", help="run the WebSocket service")
     serve.add_argument("--host", default="127.0.0.1")
@@ -80,6 +88,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _models()
     if args.command == "transcribe":
         return _transcribe(args)
+    if args.command == "bench":
+        return _bench(args)
     if args.command == "serve":
         return _serve(args)
     return 2
@@ -132,6 +142,72 @@ def _models() -> int:
     return 0
 
 
+def _bench(args) -> int:
+    """Measure diarization on a fixture with known speakers and turns."""
+    import json
+    from pathlib import Path
+
+    from . import audio
+    from .metrics import evaluate, load_turns
+
+    truth_path = Path(args.path).with_suffix(".json")
+    if not truth_path.exists():
+        print(
+            f"hearwrite bench: no ground truth at {truth_path}\n"
+            f"Expected a JSON file with a 'turns' list of "
+            f"{{speaker, start, end}} beside the audio.",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        pcm = audio.read_wav(args.path)
+    except audio.AudioError as exc:
+        print(f"hearwrite bench: {exc}", file=sys.stderr)
+        return 2
+
+    turns = load_turns(json.loads(truth_path.read_text()))
+    policy = preset(args.policy)
+    _, events, elapsed = _run_pipeline(args, policy, pcm)
+    report = evaluate(events, turns)
+
+    print(f"file:        {Path(args.path).name}")
+    print(f"policy:      {args.policy}")
+    print(f"speakers:    {report.predicted_speakers} found, {report.true_speakers} true")
+    print(f"words:       {report.words} scorable")
+    detail = f"{report.confused} of {report.labelled} labelled"
+    print(f"confusion:   {report.confusion_rate:.1%}  ({detail})")
+    print(f"null rate:   {report.null_rate:.1%}  ({report.unlabelled} abstained)")
+    if report.p50_turn_latency is not None:
+        print(
+            f"turn label:  p50 {report.p50_turn_latency:.2f}s  p90 {report.p90_turn_latency:.2f}s"
+        )
+    print(f"rtf:         {elapsed / audio.duration(pcm):.3f}")
+    return 0
+
+
+def _run_pipeline(args, policy, pcm):
+    """Build the real pipeline and run PCM through it. Shared by transcribe and bench."""
+    from . import audio
+    from .engines.sherpa import SherpaStreamingEngine
+    from .vad.silero import SileroVAD
+
+    engine = SherpaStreamingEngine.from_model(args.model, num_threads=args.threads)
+    vad = SileroVAD.from_model()
+    speakers = None
+    if not policy.is_solo:
+        from .speakers.sherpa import SherpaSpeakerFrontend
+
+        speakers = SherpaSpeakerFrontend.from_model(args.speaker_model, num_threads=args.threads)
+    coordinator = Coordinator(policy, engine=engine, vad=vad, speakers=speakers)
+
+    started = time.perf_counter()
+    events: list[Event] = []
+    for chunk in audio.chunks(pcm, getattr(args, "chunk", 0.02)):
+        events.extend(coordinator.push(chunk))
+    events.extend(coordinator.finish())
+    return coordinator, events, time.perf_counter() - started
+
+
 def _transcribe(args) -> int:
     """Run a real file through the real pipeline."""
     from . import audio
@@ -150,6 +226,14 @@ def _transcribe(args) -> int:
     try:
         engine = SherpaStreamingEngine.from_model(args.model, num_threads=args.threads)
         vad = None if args.no_vad else SileroVAD.from_model()
+        # Solo mode skips the frontend entirely, so do not even build it.
+        speakers = None
+        if not policy.is_solo:
+            from .speakers.sherpa import SherpaSpeakerFrontend
+
+            speakers = SherpaSpeakerFrontend.from_model(
+                args.speaker_model, num_threads=args.threads
+            )
     except ImportError:
         # sherpa-onnx is imported lazily inside from_model, so a missing backend
         # surfaces here rather than at module import. This is the first command
@@ -163,7 +247,7 @@ def _transcribe(args) -> int:
         print(f"hearwrite transcribe: {exc}", file=sys.stderr)
         return 1
 
-    coordinator = Coordinator(policy, engine=engine, vad=vad)
+    coordinator = Coordinator(policy, engine=engine, vad=vad, speakers=speakers)
 
     started = time.perf_counter()
     events: list[Event] = []
@@ -181,9 +265,16 @@ def _transcribe(args) -> int:
     for event in events:
         print(_render(event))
 
-    delays = [e.payload["delay"] for e in events if e.kind == "commit"]
+    commits = [e for e in events if e.kind == "commit"]
+    delays = [e.payload["delay"] for e in commits]
     print()
     print(f"transcript: {coordinator.log.committed_text}")
+    if not policy.is_solo:
+        unlabelled = sum(1 for e in commits if e.payload["speaker"] is None)
+        print(
+            f"speakers:   {coordinator.speaker_count} found, "
+            f"{unlabelled}/{len(commits)} words unlabelled"
+        )
     if delays:
         ordered = sorted(delays)
         p50 = ordered[len(ordered) // 2]

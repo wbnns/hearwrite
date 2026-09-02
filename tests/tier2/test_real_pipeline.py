@@ -13,6 +13,7 @@ ratchet; asserting exact text in a unit test just pins today's model.
 from __future__ import annotations
 
 import wave
+from pathlib import Path
 
 import pytest
 
@@ -178,3 +179,76 @@ def test_every_registry_model_is_ungated_and_pinned():
         assert "huggingface.co" not in spec.url, f"{name} may be gated"
         assert spec.sha256, f"{name} has no pinned checksum"
         assert spec.licence, f"{name} has no recorded licence"
+
+
+# -- diarization, real speakers ----------------------------------------------
+
+_FIXTURES = Path.home() / ".cache/hearwrite/corpora/fixtures"
+
+
+def _fixture(name: str):
+    wav = _FIXTURES / f"{name}.wav"
+    truth = wav.with_suffix(".json")
+    if not (wav.exists() and truth.exists()):
+        pytest.skip(f"build {wav} first; see docs/evaluation.md")
+    return wav, truth
+
+
+needs_speakers = pytest.mark.skipif(
+    not (_have("zipformer-en") and _have("silero-vad") and _have("titanet-small")),
+    reason="download zipformer-en, silero-vad and titanet-small first",
+)
+
+
+def _diarize(wav):
+    import json
+
+    from hearwrite import CONVERSATION, Coordinator
+    from hearwrite.audio import chunks, read_wav
+    from hearwrite.engines.sherpa import SherpaStreamingEngine
+    from hearwrite.metrics import evaluate, load_turns
+    from hearwrite.speakers.sherpa import SherpaSpeakerFrontend
+    from hearwrite.vad.silero import SileroVAD
+
+    pcm = read_wav(wav)
+    coordinator = Coordinator(
+        CONVERSATION,
+        engine=SherpaStreamingEngine.from_model("zipformer-en"),
+        vad=SileroVAD.from_model(),
+        speakers=SherpaSpeakerFrontend.from_model("titanet-small"),
+    )
+    events = []
+    for piece in chunks(pcm, 0.02):
+        events.extend(coordinator.push(piece))
+    events.extend(coordinator.finish())
+    turns = load_turns(json.loads(wav.with_suffix(".json").read_text()))
+    return evaluate(events, turns)
+
+
+@needs_speakers
+@pytest.mark.parametrize("name", ["conv_2spk", "conv_4spk", "conv_8spk"])
+def test_speaker_count_is_discovered_not_configured(name):
+    """Nothing tells the pipeline how many people are talking."""
+    wav, _ = _fixture(name)
+    report = _diarize(wav)
+    assert report.predicted_speakers == report.true_speakers
+
+
+@needs_speakers
+@pytest.mark.parametrize("name", ["conv_2spk", "conv_4spk", "conv_8spk"])
+def test_confusion_stays_in_budget(name):
+    """A ratchet, not a target. Measured at 3.1% / 6.1% / 6.7% on clean read
+    speech with pauses between turns; 15% leaves room for model changes while
+    still failing on a real regression.
+    """
+    wav, _ = _fixture(name)
+    assert _diarize(wav).confusion_rate < 0.15
+
+
+@needs_speakers
+def test_more_speakers_does_not_collapse_the_clustering():
+    """The design claims no fixed speaker count. This is that claim, measured."""
+    wav, _ = _fixture("conv_8spk")
+    report = _diarize(wav)
+    assert report.predicted_speakers == 8
+    assert report.confusion_rate < 0.15
