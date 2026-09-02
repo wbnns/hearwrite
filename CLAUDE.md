@@ -106,9 +106,13 @@ To add, say, a new ASR engine:
 - `hearwrite demo | policies | models | transcribe | serve`.
 - 86 Tier 1 tests and 11 Tier 2 tests, `bin/check`, CI.
 
-**Not built yet:** semantic endpointing (Phase 3). The endpoint gate runs
-acoustic only today, because no turn detector is wired in, so `_completeness()`
-returns 1.0 and the conjunction reduces to the silence timer.
+- **Semantic endpointing** (`src/hearwrite/turn/smart_turn.py`) with Whisper
+  style features in `src/hearwrite/features.py`, plus `hearwrite endpoints`.
+- **C1 confidence gating**, both directions, in `coordinator/commit.py`.
+
+**Not built yet:** Phase 4 (a delay penalty fine tune) and Phase 5 (a learned
+per word delay). Both are training work and both stay on the roadmap until the
+measured gap justifies them.
 
 ## The clustering threshold is calibration, not taste
 
@@ -127,6 +131,20 @@ Window length is part of the same calibration. Same speaker similarity climbs
 with window length while different speaker similarity stays flat, so a short
 window looks unlike itself. That is why windows are a fixed 2s and anything
 under 1.5s is not embedded at all.
+
+## The commit frontier admits no holes
+
+Two separate bugs came from the same mistake: advancing the commit frontier past
+a word that had not been emitted. Once the frontier passes a word, that word is
+silently gone.
+
+- **Early commit** may take only a CONTIGUOUS PREFIX of the tentative words.
+  Filtering them individually by confidence deleted "The build" from the front
+  of a transcript while leaving "is green." intact.
+- **A held word blocks everything after it.** Emitting word five while word four
+  is still pending leaves a gap that the append only rule makes permanent.
+
+`test_the_committed_sequence_never_has_a_gap` is the property check.
 
 ## Three things about the real engine that cost us bugs
 

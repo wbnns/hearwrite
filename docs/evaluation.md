@@ -24,7 +24,7 @@ Apple silicon, CPU only, `zipformer-en`, 20ms chunks:
 |---|---|
 | Emission delay p50 | 0.40s |
 | Emission delay p90 | 0.60s |
-| Real time factor | 0.03 |
+| Real time factor | 0.03 transcript only, 0.05 with all four models |
 
 The design doc set p50 under 600ms as a Phase 3 target. A streaming transducer
 clears it with no confidence gating at all, which is the argument for making it
@@ -88,6 +88,99 @@ tuning problem. Shorter windows trade it directly against accuracy.
 **Confusion is not the same as being right.** A word is scored against the turn
 its midpoint falls in, so a word straddling a real speaker change can be marked
 wrong even when the labelling is defensible.
+
+## Endpointing
+
+Whether a pause is the end of a thought. The corpus is 40 pairs: each full
+LibriSpeech utterance alongside the same audio cut immediately after a function
+word ("the", "of", "and", "to"). A clip ending there cannot be a finished
+sentence, so the negative labels need no human.
+
+| Policy | Threshold | Cuts the speaker off | Left to the timeout |
+|---|---|---|---|
+| conservative | 0.70 | 5.0% | 60.0% |
+| balanced | 0.60 | 15.0% | 32.5% |
+| aggressive | 0.55 | 22.5% | 22.5% |
+
+The design doc asked for a false endpoint rate under 5% on mid thought pauses.
+Conservative lands **at** 5.0%, not under it.
+
+The two failures are not symmetric. Cutting someone off mid sentence produces a
+turn boundary in the wrong place, permanently. Failing to notice that they
+finished only means waiting for the acoustic timeout, which is latency, not
+loss. That asymmetry is why the thresholds sit where they do and why the numbers
+are reported apart.
+
+Reproduce with `hearwrite endpoints ~/.cache/hearwrite/corpora/fixtures/midthought`.
+
+### Scoring rate is part of the threshold
+
+The completeness score is noisy frame to frame. Measured across one pause it
+read 0.58, 0.61, 0.67, 0.66, 0.61, 0.65, 0.61, 0.65, then spiked to 0.71 before
+falling back.
+
+The gate fires on the first frame that crosses, so running the detector at frame
+rate does not test "is the score above 0.70". It tests "is the maximum of fifty
+samples a second above 0.70", which is a much weaker condition and would put the
+real false endpoint rate well above the table above. The calibration measured one
+window per utterance; the runtime samples a few times a second, which keeps the
+two comparable.
+
+`turn_interval` is therefore a correctness dial, not just a cost one. It also
+cuts the real time factor of a 106 second multi speaker file from 0.076 to
+0.046, on top of the larger saving from not scoring at all until the acoustic
+gate is satisfied (0.330 to 0.076).
+
+### The positive labels are noisy
+
+LibriSpeech utterances are audiobook chunks and do not always end on a sentence
+boundary, so some "complete" clips are not complete. That inflates the
+"left to the timeout" column and leaves the false endpoint column trustworthy.
+Quote the first, not the second.
+
+### smart-turn v3.2 does not work with the documented features
+
+v3.0, v3.1 and v3.2 all take the same 80 by 800 log mel input. Fed the features
+Whisper defines and smart-turn's own reference computes, v3.0 and v3.1 separate
+finished from unfinished by about 0.20 of probability. v3.2 separates them by
+**-0.006** -- it returns the same answer for a finished sentence and one cut off
+after "and". Its preprocessing must differ in a way that is not published, and
+smart-turn's own `inference.py` still pins v3.1. HearWrite defaults to v3.1 and
+keeps v3.2 in the registry so the finding stays reproducible.
+
+## C1 confidence gating
+
+The reference system learns a per word delay. C1 approximates it with policy and
+no training, in two directions: hold a stable word the engine is unsure about,
+or take a tentative word it is very sure about without waiting.
+
+Which one helps depends entirely on the engine, and that is the interesting
+part. A greedy transducer settles a word the moment it emits it, so there is no
+tentative state to skip. LocalAgreement over Whisper holds every word until two
+passes agree, so early commit removes a whole pass of latency:
+
+| `early_commit_confidence` | p50 delay | p90 delay | Transcript |
+|---|---|---|---|
+| off | 1.62s | 1.99s | unchanged |
+| 0.95 | 1.38s | 1.99s | unchanged |
+| 0.85 | 0.64s | 1.99s | unchanged |
+| 0.70 | 0.64s | 1.99s | unchanged |
+
+A 2.5x reduction in median emission delay at no cost to this transcript. p90 is
+unmoved because the final words still wait for the last pass.
+
+It is off by default. The gain is real but it is a gamble: an early committed
+word can still be revised, and under the append only rule the revision is
+dropped rather than emitted, so the cost of being wrong is a wrong word rather
+than a contradiction.
+
+**A bug worth recording.** The first implementation filtered tentative words by
+confidence individually. Committing a confident later word advanced the commit
+frontier past an unconfident earlier one, which deleted it: the transcript came
+back as "is green. I think..." with "The build" silently gone. Only a contiguous
+prefix may be taken, and the same rule applies when holding a word -- a held
+word blocks everything after it, because emitting word five while word four is
+pending leaves a hole the append only rule makes permanent.
 
 ## Why abstention is reported separately
 

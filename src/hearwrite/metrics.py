@@ -65,6 +65,44 @@ class SpeakerReport:
         return _percentile(self.turn_label_latency, 0.9)
 
 
+@dataclass(frozen=True)
+class EndpointReport:
+    """How an endpoint policy behaves on a mid thought corpus.
+
+    The two failures are not symmetric and must not be averaged. Cutting a
+    speaker off mid sentence is the one the design exists to prevent; failing to
+    detect a finished sentence only means waiting for the timeout, which is a
+    latency cost rather than a wrong transcript.
+    """
+
+    incomplete: int
+    complete: int
+    false_endpoints: int
+    missed_endpoints: int
+
+    @property
+    def false_endpoint_rate(self) -> float:
+        """Share of mid thought pauses wrongly treated as the end of a turn."""
+        return self.false_endpoints / self.incomplete if self.incomplete else 0.0
+
+    @property
+    def missed_endpoint_rate(self) -> float:
+        """Share of finished utterances left to the timeout. A latency cost."""
+        return self.missed_endpoints / self.complete if self.complete else 0.0
+
+
+def score_endpoints(
+    incomplete: Sequence[float], complete: Sequence[float], threshold: float
+) -> EndpointReport:
+    """Score completeness values against a threshold."""
+    return EndpointReport(
+        incomplete=len(incomplete),
+        complete=len(complete),
+        false_endpoints=sum(1 for v in incomplete if v >= threshold),
+        missed_endpoints=sum(1 for v in complete if v < threshold),
+    )
+
+
 def load_turns(raw: Mapping[str, object]) -> tuple[Turn, ...]:
     turns = raw["turns"]
     assert isinstance(turns, list)

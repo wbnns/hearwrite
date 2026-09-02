@@ -5,6 +5,71 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added -- Phase 3: it knows when you have finished
+
+**Semantic endpointing.** smart-turn v3.1 closes the gap an acoustic VAD cannot:
+"what's the weather in..." and "what's the weather in Menlo Park" are identical
+to a silence timer if the pauses match. The gate is conjunctive, so an endpoint
+needs both, with a timeout so a speaker who trails off cannot hang the session.
+Measured on a 40 pair mid thought corpus: the conservative policy wrongly ends a
+turn on 5.0% of mid phrase pauses. The design doc asked for under 5%, so this
+lands at the target rather than under it.
+
+**Whisper style log mel features in numpy**, rather than adding `transformers`
+for an 8MB model. Reimplementing a feature extractor is a good way to be
+silently wrong, so the filterbank is checked against faster-whisper's
+independent implementation: it matches to 0.0, and the full spectrogram to
+1.2e-07.
+
+**C1 confidence gating, in both directions.** Hold a stable word the engine is
+unsure about, or take a tentative word it is very sure about without waiting.
+Which helps depends on the engine, and that is the interesting part: a greedy
+transducer settles a word as it emits it, so there is nothing to skip, while
+LocalAgreement over Whisper holds everything until two passes agree. Early
+commit cuts Whisper's median emission delay from 1.62s to 0.64s with no change
+to the transcript. Off by default, because an early committed word can still be
+revised.
+
+**`hearwrite endpoints`**, and a mid thought corpus builder. The trick that
+makes the corpus cheap is the cut point: a clip ending on "the", "of" or "and"
+cannot be a finished sentence, so the negative labels need no human.
+
+### Fixed
+
+**Early commit could delete words from the front of the transcript.** Filtering
+tentative words by confidence individually let a confident later word advance
+the commit frontier past an unconfident earlier one, which then sat behind the
+frontier forever. "The build is green" came back as "is green". Only a
+contiguous prefix may be committed, and a held word now blocks everything after
+it for the same reason.
+
+**Features were normalised after zero padding rather than before.** Whisper
+normalises under an attention mask so only real samples count; folding the
+padding into the mean and variance shifted every value the model saw, and the
+model responded by returning 0.72 for absolutely everything.
+
+**The turn detector ran at frame rate, which quietly changed the threshold.**
+The completeness score is noisy between frames and the gate fires on the first
+crossing, so scoring fifty times a second tested "the maximum of fifty samples"
+rather than "the score", which is much weaker than the calibrated number. It is
+now sampled a few times a second and never before the acoustic gate could fire.
+That also cut the real time factor of a 106 second file from 0.330 to 0.046.
+
+### Findings
+
+**smart-turn v3.2 does not work with the documented feature pipeline.** v3.0 and
+v3.1 separate finished from unfinished utterances by about 0.20 of probability
+on our corpus. v3.2, given identical input, separates them by -0.006. Its
+preprocessing must differ in some unpublished way; smart-turn's own inference
+script still pins v3.1. HearWrite defaults to v3.1 and keeps v3.2 registered so
+the finding stays reproducible.
+
+**The registry guard was testing a proxy.** It asserted every model URL began
+with github.com, which is not the property that matters. What matters is that a
+download needs no account, token or licence acceptance, and the only way to
+check that is to try: there is now a network marked test that fetches every
+registry URL anonymously.
+
 ### Added -- Phase 1c: a second engine, and the proof the interface holds
 
 **faster-whisper behind the same interface**, using LocalAgreement: transcribe a

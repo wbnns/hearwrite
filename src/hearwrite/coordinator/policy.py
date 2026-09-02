@@ -45,10 +45,20 @@ class EndpointPolicy:
     max_silence_seconds: float
 
 
+# Completeness thresholds are calibrated for smart-turn v3.1 on a 40 pair mid
+# thought corpus, and they trade the two failures against each other:
+#
+#   thr 0.70 -> cuts someone off  5% of the time, waits for the timeout 60%
+#   thr 0.60 -> cuts someone off 15% of the time, waits for the timeout 33%
+#   thr 0.55 -> cuts someone off 23% of the time, waits for the timeout 23%
+#
+# Waiting is not a hang: the timeout fallback still closes the turn. So the
+# conservative end buys "never interrupt me" with latency, which is exactly the
+# trade dictation wants and a voice agent does not.
 _ENDPOINT_PRESETS = {
-    EndpointMode.CONSERVATIVE: EndpointPolicy(1.0, 0.75, 4.0),
+    EndpointMode.CONSERVATIVE: EndpointPolicy(1.0, 0.70, 4.0),
     EndpointMode.BALANCED: EndpointPolicy(0.6, 0.60, 2.0),
-    EndpointMode.AGGRESSIVE: EndpointPolicy(0.25, 0.45, 1.2),
+    EndpointMode.AGGRESSIVE: EndpointPolicy(0.25, 0.55, 1.2),
 }
 
 
@@ -93,12 +103,37 @@ class Policy:
     sample_rate: int = 16_000
     speakers: SpeakerPolicy = SpeakerPolicy()
     endpoint: EndpointPolicy = _ENDPOINT_PRESETS[EndpointMode.BALANCED]
-    #: C1 confidence gating (Phase 3). Commit a stable word immediately when the
-    #: engine is this confident; otherwise hold it for `slow_commit_seconds` of
-    #: further audio to see whether it changes. The cheapest approximation of
-    #: the reference system's learned per-word delay, with no training.
+    # C1 confidence gating: two dials that trade accuracy against latency in
+    # opposite directions, which is the point. The reference system learns a
+    # per word delay; this approximates it with policy and no training.
+    #
+    #: Hold a STABLE word this unconfident for `slow_commit_seconds` of further
+    #: audio, in case the engine changes its mind. Costs latency, buys accuracy.
+    #: 0.0 disables it.
     confidence_gate: float = 0.0
     slow_commit_seconds: float = 0.35
+    #: Commit a TENTATIVE word this confident without waiting for the engine to
+    #: call it settled. Buys latency, costs accuracy. Only meaningful for an
+    #: engine that has a real tentative state to skip -- a greedy transducer
+    #: settles immediately, so there is nothing to skip and this does nothing.
+    #: 1.01 disables it (no probability can reach it).
+    early_commit_confidence: float = 1.01
+    #: Minimum gap between two turn detector runs.
+    #:
+    #: This is a correctness dial, not only a cost one. The completeness score
+    #: is noisy frame to frame -- measured on one pause it read 0.58, 0.61,
+    #: 0.67, 0.66, 0.61, 0.65, 0.61, 0.65, then spiked to 0.71 -- and the gate
+    #: fires on the FIRST frame that crosses. Scoring at frame rate therefore
+    #: turns the threshold into "the maximum over fifty samples a second",
+    #: which is far more permissive than the number it was calibrated as, and
+    #: would push the false endpoint rate above what docs/evaluation.md reports.
+    #: Sampling a few times a second keeps the runtime decision close to the
+    #: single window decision the calibration measured. It also happens to cost
+    #: a great deal less.
+    turn_interval: float = 0.2
+    #: Seconds of audio handed to the turn detector. smart-turn was trained on
+    #: eight second windows, so more is wasted and less is a different model.
+    turn_context_seconds: float = 8.0
     #: Backpressure: fall this far behind real time and partials get dropped.
     max_lag_seconds: float = 1.5
 

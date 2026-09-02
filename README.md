@@ -33,6 +33,7 @@ Measured on Apple silicon, CPU only:
 | Speaker confusion | **3.1%** at 2 speakers, **7.6%** at 24 |
 | Speaker count | discovered, exact at 2, 4, 8, 16 and 24 |
 | Engines | streaming transducer (default) and Whisper, same interface |
+| False endpoint | **5.0%** on mid thought pauses (conservative policy) |
 
 **Read the caveats before trusting those diarization numbers.** They are on
 clean read speech with a pause at every turn boundary and no overlap, which is
@@ -71,9 +72,10 @@ correct, complete transcript. That is what lets a simple integration stay simple
    blank symbol is a first-class "keep listening" decision, not an error.
 3. **Cluster.** Speaker segments get embeddings; incremental clustering turns
    them into stable labels with no fixed speaker count.
-4. **Gate.** An endpoint fires only when silence is long enough *and* the
-   utterance reads as a finished thought, with a timeout so a speaker who trails
-   off cannot hang the session.
+4. **Gate.** An endpoint fires only when silence is long enough *and* an
+   audio native turn detector reads the utterance as a finished thought, with a
+   timeout so a speaker who trails off cannot hang the session. Measured: 5.0%
+   of mid thought pauses are wrongly treated as the end of a turn.
 5. **Emit.** One ordered, append-only event log over WebSocket.
 
 ## Speakers
@@ -102,7 +104,8 @@ src/hearwrite/
   events.py            the append-only event log
   clock.py             audio-relative time; nothing reads the system clock
   protocol.py          wire schema, frozen
-  metrics.py           diarization scoring; abstention counted apart from error
+  features.py          Whisper style log mel, checked against an independent build
+  metrics.py           scoring; abstention and error counted apart, never summed
   models.py            model registry: public URLs, pinned checksums, licences
   coordinator/         all state and all policy lives here
     commit.py            what text is final, and when
@@ -137,6 +140,7 @@ hearwrite transcribe recording.wav          # 16kHz mono WAV; downloads on first
 hearwrite transcribe meeting.wav --policy conversation   # with speaker labels
 hearwrite serve --port 8080                 # WebSocket: binary PCM up, JSON down
 hearwrite bench fixture.wav                 # score diarization against ground truth
+hearwrite endpoints midthought/             # score endpointing on mid thought clips
 ```
 
 Tier 2 exercises the real models and is opt in, because it needs weights on disk:

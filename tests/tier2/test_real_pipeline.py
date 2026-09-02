@@ -167,18 +167,44 @@ def test_solo_mode_never_touches_a_speaker_frontend(pipeline, speech):
     assert all(e.payload["speaker"] == "A" for e in events if e.kind == "commit")
 
 
-def test_every_registry_model_is_ungated_and_pinned():
+def test_every_registry_model_records_a_licence_and_a_checksum():
     """No model may need an account, a token, or a licence acceptance.
 
-    This one needs no weights, so it always runs.
+    Needs no weights, so it always runs. The host allowlist is not the point --
+    plenty of ungated models live on Hugging Face -- but a URL carrying
+    credentials or pointing somewhere unexpected is worth failing on.
     """
+    allowed = ("https://github.com/", "https://huggingface.co/")
     for name, spec in REGISTRY.items():
-        assert spec.url.startswith("https://github.com/"), (
-            f"{name} is not a plain public download: {spec.url}"
+        assert spec.url.startswith(allowed), f"{name}: unexpected host {spec.url}"
+        assert "?" not in spec.url, f"{name}: URL carries query parameters"
+        assert "@" not in spec.url.split("//", 1)[1].split("/", 1)[0], (
+            f"{name}: URL embeds credentials"
         )
-        assert "huggingface.co" not in spec.url, f"{name} may be gated"
         assert spec.sha256, f"{name} has no pinned checksum"
         assert spec.licence, f"{name} has no recorded licence"
+
+
+@pytest.mark.network
+def test_every_registry_model_downloads_without_credentials():
+    """The actual definition of ungated: an anonymous request succeeds.
+
+    This is the property that matters and the only way to check it is to try.
+    Marked separately because it needs the network but no weights on disk.
+    """
+    import urllib.error
+    import urllib.request
+
+    for name, spec in REGISTRY.items():
+        request = urllib.request.Request(spec.url, method="HEAD")
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                assert response.status == 200, f"{name}: HTTP {response.status}"
+        except urllib.error.HTTPError as exc:  # pragma: no cover - network
+            raise AssertionError(
+                f"{name} is not anonymously downloadable: HTTP {exc.code}. "
+                f"A gated model means a token in CI and weights nobody can vendor."
+            ) from exc
 
 
 # -- diarization, real speakers ----------------------------------------------
@@ -339,4 +365,131 @@ def test_whisper_buffer_stays_bounded_over_a_long_session(speech):
     assert at > 30.0, "fixture too short to prove anything"
     assert len(engine._buffer) <= int(30 * SR), (
         f"buffer grew to {len(engine._buffer) / SR:.1f}s over a {at:.0f}s session"
+    )
+
+
+# -- semantic endpointing ----------------------------------------------------
+
+_MIDTHOUGHT = _FIXTURES / "midthought"
+
+needs_turn = pytest.mark.skipif(not _have("smart-turn"), reason="download smart-turn first")
+
+
+def _midthought_scores():
+    import json
+    import wave
+
+    index = _MIDTHOUGHT / "index.json"
+    if not index.exists():
+        pytest.skip("build the corpus with scripts/build_fixtures.py")
+
+    from hearwrite.turn.smart_turn import SmartTurnDetector
+
+    detector = SmartTurnDetector.from_model()
+    items = json.loads(index.read_text())
+
+    def score(name):
+        with wave.open(str(_MIDTHOUGHT / name)) as handle:
+            pcm = handle.readframes(handle.getnframes())
+        return detector.completeness("", pcm[: max(0, len(pcm) - int(1.5 * SR) * 2)])
+
+    return (
+        [score(i["incomplete"]) for i in items],
+        [score(i["complete"]) for i in items],
+    )
+
+
+@needs_turn
+def test_the_semantic_gate_separates_finished_from_unfinished():
+    """Clips cut just after a function word cannot be finished sentences.
+
+    If this stops separating, the model or the feature pipeline has changed and
+    every endpoint threshold below it is meaningless.
+    """
+    import statistics
+
+    incomplete, complete = _midthought_scores()
+    gap = statistics.median(complete) - statistics.median(incomplete)
+    assert gap > 0.10, f"no discrimination: median gap {gap:+.3f}"
+
+
+@needs_turn
+def test_conservative_policy_rarely_cuts_a_speaker_off():
+    """The metric the whole conjunctive design exists to move."""
+    from hearwrite.coordinator.policy import _ENDPOINT_PRESETS, EndpointMode
+    from hearwrite.metrics import score_endpoints
+
+    incomplete, complete = _midthought_scores()
+    threshold = _ENDPOINT_PRESETS[EndpointMode.CONSERVATIVE].completeness_threshold
+    report = score_endpoints(incomplete, complete, threshold)
+    assert report.false_endpoint_rate <= 0.10, (
+        f"false endpoint rate {report.false_endpoint_rate:.1%}"
+    )
+
+
+@needs_turn
+def test_thresholds_are_ordered_by_how_much_they_interrupt():
+    """Aggressive should interrupt more often than conservative, by design."""
+    from hearwrite.coordinator.policy import _ENDPOINT_PRESETS, EndpointMode
+    from hearwrite.metrics import score_endpoints
+
+    incomplete, complete = _midthought_scores()
+    rates = {
+        mode: score_endpoints(
+            incomplete, complete, _ENDPOINT_PRESETS[mode].completeness_threshold
+        ).false_endpoint_rate
+        for mode in EndpointMode
+    }
+    assert (
+        rates[EndpointMode.CONSERVATIVE]
+        <= rates[EndpointMode.BALANCED]
+        <= rates[EndpointMode.AGGRESSIVE]
+    ), rates
+
+
+@needs_turn
+def test_acoustic_only_cuts_people_off_and_the_semantic_gate_stops_it():
+    """The comparison that justifies the second model.
+
+    An acoustic gate fires on silence alone, so a mid thought pause ends the
+    turn every time. Adding the semantic gate is what prevents it.
+    """
+    import wave
+
+    from hearwrite import DICTATION, Coordinator
+    from hearwrite.audio import chunks
+    from hearwrite.engines.sherpa import SherpaStreamingEngine
+    from hearwrite.turn.smart_turn import SmartTurnDetector
+    from hearwrite.vad.silero import SileroVAD
+
+    index = _MIDTHOUGHT / "index.json"
+    if not index.exists():
+        pytest.skip("build the corpus with scripts/build_fixtures.py")
+    import json
+
+    items = json.loads(index.read_text())[:8]
+
+    def early_endpoints(use_turn: bool) -> int:
+        count = 0
+        for item in items:
+            with wave.open(str(_MIDTHOUGHT / item["incomplete"])) as handle:
+                pcm = handle.readframes(handle.getnframes())
+            coordinator = Coordinator(
+                DICTATION,
+                engine=SherpaStreamingEngine.from_model(),
+                vad=SileroVAD.from_model(),
+                turn=SmartTurnDetector.from_model() if use_turn else None,
+            )
+            events = []
+            for piece in chunks(pcm, 0.02):
+                events.extend(coordinator.push(piece))
+            count += sum(
+                1 for e in events if e.kind == "endpoint" and e.payload["reason"] == "complete"
+            )
+        return count
+
+    with_gate = early_endpoints(True)
+    without_gate = early_endpoints(False)
+    assert with_gate < without_gate, (
+        f"the semantic gate changed nothing: {with_gate} vs {without_gate}"
     )

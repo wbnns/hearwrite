@@ -15,7 +15,7 @@ are swappable and are not the product. The **Coordinator** is the product.
 Not a Whisper wrapper. Not a speech separation system. Not a batch transcriber.
 Not tied to any one model.
 
-## Nine rules
+## Ten rules
 
 1. **Committed output is append-only.** Once a `commit` is emitted, nothing may
    contradict it. `partial` may be revised freely. Enforced by
@@ -38,9 +38,13 @@ Not tied to any one model.
    `coordinator/`, never in a wrapper.
 8. **`at` is when an event was emitted**, not what audio it describes. Audio
    positions go in the payload. The log rejects an event from the past.
-9. **The clustering threshold belongs to the embedding model.** Change the model
-   and you must redo the calibration in `docs/evaluation.md`. Never calibrate on
-   synthetic speech; it measures the words, not the speaker.
+9. **Thresholds belong to their models.** The clustering threshold and the
+    completeness threshold are both properties of a checkpoint, not of speech.
+    Change the model and redo the calibration in `docs/evaluation.md`. Never
+    calibrate on synthetic speech: it measures the words, not the speaker.
+10. **The commit frontier admits no holes.** Never advance it past a word that
+    has not been emitted. Early commit takes a contiguous prefix only, and a
+    held word blocks everything after it.
 
 ## Where things are
 

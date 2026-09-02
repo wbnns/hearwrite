@@ -73,6 +73,7 @@ class Coordinator:
         self._commit = CommitPolicy(
             confidence_gate=policy.confidence_gate,
             slow_commit_seconds=policy.slow_commit_seconds,
+            early_commit_confidence=policy.early_commit_confidence,
         )
         self._endpoint = EndpointGate(policy.endpoint)
         self._backpressure = BackpressureGate(policy.max_lag_seconds)
@@ -87,6 +88,12 @@ class Coordinator:
         self._closed_through = 0.0
         self._spoke_yet = False
         self._last_completeness = 0.0
+        #: Rolling audio for the turn detector. An audio native detector needs
+        #: the speech leading up to the pause, and wrappers are stateless, so
+        #: the buffer lives here with the rest of the state.
+        self._recent = bytearray()
+        self._scored_at = -1.0
+        self._recent_limit = int(policy.turn_context_seconds * policy.sample_rate) * 2
         #: Commit seq numbers still waiting for a speaker label, with the audio
         #: span needed to resolve them later.
         self._unlabeled: list[tuple[int, float, float]] = []
@@ -110,6 +117,11 @@ class Coordinator:
         at = self._clock.advance_bytes(len(pcm))
 
         self._observe_lag(lag, at)
+
+        if self._turn is not None:
+            self._recent += pcm
+            if len(self._recent) > self._recent_limit:
+                del self._recent[: len(self._recent) - self._recent_limit]
 
         state = self._read_vad(pcm, at)
         if state is not None and state.speaking and not self._spoke_yet:
@@ -302,18 +314,36 @@ class Coordinator:
             # every endpoint would come from the timeout. Treat "no detector" as
             # "no semantic objection" so the acoustic gate alone decides.
             return 1.0
-        self._last_completeness = self._turn.completeness(self.log.committed_text)
+        self._last_completeness = self._turn.completeness(
+            self.log.committed_text, bytes(self._recent)
+        )
         return self._last_completeness
 
     def _close_endpoint(self, state: SpeechState | None, at: float) -> None:
         if state is None:
             return
-        # Only score the utterance once silence is actually accumulating. At 20ms
-        # frames, asking on every push would dominate the CPU budget.
-        completeness = self._completeness() if self._endpoint.wants_completeness else 0.0
+        completeness = self._maybe_score(state, at)
         endpoint = self._endpoint.observe(state, completeness)
         if endpoint is not None:
             self._emit_endpoint(endpoint.at, endpoint.reason, endpoint.completeness)
+
+    def _maybe_score(self, state: SpeechState, at: float) -> float:
+        """Run the semantic gate only when its answer could change the outcome.
+
+        Two throttles, and both matter. The score is irrelevant until the
+        ACOUSTIC gate is satisfied, because the conjunction cannot fire before
+        then. And once it is satisfied, re-running an eight second model every
+        20ms is pure waste: scoring at frame rate cost nine times the real time
+        factor of everything else in the pipeline combined.
+        """
+        if self._turn is None or not self._endpoint.wants_completeness:
+            return 0.0
+        if self._endpoint.silence_held(at) < self.policy.endpoint.silence_seconds:
+            return 0.0
+        if at - self._scored_at < self.policy.turn_interval:
+            return self._last_completeness
+        self._scored_at = at
+        return self._completeness()
 
     def _emit_endpoint(self, at: float, reason, completeness: float) -> None:
         self.log.emit(

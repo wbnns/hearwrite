@@ -131,6 +131,37 @@ REGISTRY: dict[str, ModelSpec] = {
         single_file=True,
         filename="wespeaker_en_voxceleb_CAM++.onnx",
     ),
+    "smart-turn": ModelSpec(
+        name="smart-turn",
+        url=(
+            "https://huggingface.co/pipecat-ai/smart-turn-v3/resolve/main/smart-turn-v3.1-cpu.onnx"
+        ),
+        licence="BSD-2-Clause",
+        languages="23 languages",
+        approx_mb=9,
+        summary="smart-turn v3.1, semantic endpointing. BSD-2 code AND weights.",
+        sha256="fb68d55c2d542ce79e44b12013bfd571e90df8594ab096d757198e851b0c6594",
+        single_file=True,
+    ),
+    # v3.2 is deliberately NOT the default. It takes the same 80x800 input as
+    # v3.0 and v3.1, but fed the documented Whisper log mel features it returns
+    # the same probability for a finished sentence and one cut off after "and"
+    # (medians 0.720 and 0.726 over 40 pairs, a gap of -0.006, against +0.18 for
+    # v3.1). Its preprocessing must differ in some way that is not published;
+    # smart-turn's own inference.py still pins v3.1. Left registered so the
+    # finding is reproducible.
+    "smart-turn-v3.2": ModelSpec(
+        name="smart-turn-v3.2",
+        url=(
+            "https://huggingface.co/pipecat-ai/smart-turn-v3/resolve/main/smart-turn-v3.2-cpu.onnx"
+        ),
+        licence="BSD-2-Clause",
+        languages="23 languages",
+        approx_mb=9,
+        summary="smart-turn v3.2. Does not discriminate with our features; see models.py.",
+        sha256="2bb026316b14a660486a75b1733cd3fbab8c2fd0314dc9af7be49f8cca967e4f",
+        single_file=True,
+    ),
     "silero-vad": ModelSpec(
         name="silero-vad",
         url=("https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx"),

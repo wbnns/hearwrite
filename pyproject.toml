@@ -28,13 +28,15 @@ dependencies = []
 [project.optional-dependencies]
 # The blessed default: everything ONNX, everything CPU, nothing gated.
 onnx = ["sherpa-onnx>=1.13"]
+# Semantic endpointing: an 8MB ONNX model plus the numpy to build its features.
+turn = ["onnxruntime>=1.20", "numpy>=1.24"]
 # A second engine of a genuinely different shape, to prove the interface holds.
 whisper = ["faster-whisper>=1.2"]
 # The only extra that needs torch. Keep it isolated.
 sortformer = ["nemo-toolkit[asr]>=3.0", "torch>=2.4"]
 server = ["websockets>=13.0"]
 dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11"]
-all = ["hearwrite[onnx,whisper,server]"]
+all = ["hearwrite[onnx,turn,whisper,server]"]
 
 [project.scripts]
 hearwrite = "hearwrite.cli:main"
@@ -63,7 +65,7 @@ warn_redundant_casts = true
 [[tool.mypy.overrides]]
 # Neither ships type stubs. Both are used only inside a wrapper whose own
 # interface is fully typed, so the untyped surface stops at the module boundary.
-module = ["sherpa_onnx.*", "websockets.*", "faster_whisper.*"]
+module = ["sherpa_onnx.*", "websockets.*", "faster_whisper.*", "onnxruntime.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
@@ -78,6 +80,7 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 markers = [
   "tier2: needs real models and downloads; not run by bin/check",
+  "network: reaches the internet; needs no weights on disk",
 ]
 # Tier 2 needs real weights on disk, so a bare `pytest` must not reach for it.
-addopts = "-q --strict-markers -m 'not tier2'"
+addopts = "-q --strict-markers -m 'not tier2 and not network'"

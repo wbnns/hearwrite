@@ -32,7 +32,13 @@ _MISSING_BACKEND = (
 )
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """The whole command line surface, separate from running it.
+
+    Split out so tests can check that every flag the code reads is a flag the
+    parser defines, without starting a server or loading a model. That gap once
+    shipped a `--no-turn` the parser had never heard of.
+    """
     parser = argparse.ArgumentParser(
         prog="hearwrite",
         description="Real-time transcription, speaker labels and endpointing.",
@@ -67,8 +73,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     transcribe.add_argument("--threads", type=int, default=2)
     transcribe.add_argument("--json", action="store_true", help="emit the raw event log")
     transcribe.add_argument("--no-vad", action="store_true", help="skip the acoustic gate")
+    transcribe.add_argument("--no-turn", action="store_true", help="skip the semantic gate")
 
     sub.add_parser("models", help="list known models and their licences")
+
+    endpoints = sub.add_parser("endpoints", help="score endpointing against a mid thought corpus")
+    endpoints.add_argument("path", help="directory containing index.json")
+    endpoints.add_argument("--turn-model", default="smart-turn")
 
     bench = sub.add_parser("bench", help="score diarization against a labelled fixture")
     bench.add_argument("path", help="WAV file with a sibling .json of ground truth")
@@ -91,7 +102,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="admission limit; never oversubscribe, latency is what users notice",
     )
 
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     if args.command == "demo":
         return _demo(args)
@@ -103,6 +118,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _transcribe(args)
     if args.command == "bench":
         return _bench(args)
+    if args.command == "endpoints":
+        return _endpoints(args)
     if args.command == "serve":
         return _serve(args)
     return 2
@@ -152,6 +169,61 @@ def _models() -> int:
             f"  {spec.licence} | {spec.languages} | ~{spec.approx_mb}MB | "
             f"{state} | sha256 {'pinned' if spec.sha256 else 'UNPINNED'}"
         )
+    return 0
+
+
+def _endpoints(args) -> int:
+    """Measure the semantic gate on clips cut mid thought.
+
+    The corpus pairs each full utterance with the same audio cut just after a
+    function word, which is a point no English sentence ends at. So the
+    incomplete labels are trustworthy, and the false endpoint rate they produce
+    is the number worth quoting.
+    """
+    import json
+    import wave
+    from pathlib import Path
+
+    from .coordinator.policy import _ENDPOINT_PRESETS
+    from .metrics import score_endpoints
+    from .turn.smart_turn import SmartTurnDetector
+
+    root = Path(args.path)
+    index = root / "index.json"
+    if not index.exists():
+        print(
+            f"hearwrite endpoints: no corpus at {index}\nBuild one with scripts/build_fixtures.py",
+            file=sys.stderr,
+        )
+        return 2
+
+    detector = SmartTurnDetector.from_model(args.turn_model)
+    items = json.loads(index.read_text())
+
+    def score(name: str) -> float:
+        with wave.open(str(root / name)) as handle:
+            pcm = handle.readframes(handle.getnframes())
+        # Drop the trailing silence appended for the acoustic gate: the model
+        # wants the speech leading up to the pause, not the pause itself.
+        trailing = int(1.5 * 16_000) * 2
+        return detector.completeness("", pcm[: max(0, len(pcm) - trailing)])
+
+    incomplete = [score(i["incomplete"]) for i in items]
+    complete = [score(i["complete"]) for i in items]
+
+    print(f"corpus:  {len(items)} pairs from {root}")
+    print()
+    print(f"  {'policy':<14} {'thr':>5} {'false endpoint':>15} {'left to timeout':>17}")
+    for mode, policy in _ENDPOINT_PRESETS.items():
+        report = score_endpoints(incomplete, complete, policy.completeness_threshold)
+        print(
+            f"  {mode!s:<14} {policy.completeness_threshold:>5.2f} "
+            f"{report.false_endpoint_rate:>14.1%} {report.missed_endpoint_rate:>16.1%}"
+        )
+    print()
+    print("  false endpoint = cut the speaker off mid thought. The one that matters.")
+    print("  left to timeout = finished, but the semantic gate did not say so; the")
+    print("  acoustic timeout still closes the turn, so this is latency not loss.")
     return 0
 
 
@@ -252,6 +324,11 @@ def _transcribe(args) -> int:
     try:
         engine = _build_engine(args)
         vad = None if args.no_vad else SileroVAD.from_model()
+        turn = None
+        if not args.no_turn:
+            from .turn.smart_turn import SmartTurnDetector
+
+            turn = SmartTurnDetector.from_model()
         # Solo mode skips the frontend entirely, so do not even build it.
         speakers = None
         if not policy.is_solo:
@@ -273,7 +350,7 @@ def _transcribe(args) -> int:
         print(f"hearwrite transcribe: {exc}", file=sys.stderr)
         return 1
 
-    coordinator = Coordinator(policy, engine=engine, vad=vad, speakers=speakers)
+    coordinator = Coordinator(policy, engine=engine, vad=vad, speakers=speakers, turn=turn)
 
     started = time.perf_counter()
     events: list[Event] = []

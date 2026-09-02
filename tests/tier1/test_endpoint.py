@@ -144,3 +144,63 @@ def test_endpoint_closes_the_turn_so_the_next_word_opens_a_new_one():
     events = drive(coord, 5.0)
     turns = [e.payload["turn"] for e in events if e.kind == "turn_start"]
     assert turns == [1, 2], f"expected two turns, got {turns}"
+
+
+# -- the semantic gate is sampled, not streamed -------------------------------
+
+
+def test_the_turn_detector_is_not_run_at_frame_rate():
+    """Scoring every frame would silently lower the threshold.
+
+    The gate fires on the first frame that crosses, and the completeness score
+    is noisy, so fifty samples a second turns "score >= 0.70" into "the maximum
+    of fifty samples >= 0.70". That is a different and much more permissive
+    test than the one the thresholds were calibrated as.
+    """
+    detector = ScriptedTurnDetector(fixed=0.0)
+    coord = Coordinator(
+        DICTATION,
+        engine=ScriptedEngine(
+            script={1.0: Hypothesis(stable=words("hello", each=0.4), consumed_to=1.0)}
+        ),
+        vad=ScriptedVAD(speech=((0.0, 1.0),)),
+        turn=detector,
+    )
+    drive(coord, 6.0)
+    # Five seconds of silence at 20ms frames is 250 opportunities to score.
+    assert len(detector.calls) < 40, f"scored {len(detector.calls)} times"
+
+
+def test_the_detector_is_silent_until_the_acoustic_gate_could_fire():
+    """The score cannot change the outcome before the silence is long enough,
+    so running the model before then is pure cost."""
+    detector = ScriptedTurnDetector(fixed=1.0)
+    coord = Coordinator(
+        DICTATION,  # conservative: needs 1.0s of silence
+        engine=ScriptedEngine(
+            script={1.0: Hypothesis(stable=words("hi", each=0.4), consumed_to=1.0)}
+        ),
+        vad=ScriptedVAD(speech=((0.0, 1.0),)),
+        turn=detector,
+    )
+    frame = b"\x00\x00" * 320
+    for _ in range(90):  # 1.8s: 1.0s speech then 0.8s silence, under the gate
+        coord.push(frame)
+    assert detector.calls == [], "scored before the acoustic gate could be satisfied"
+
+
+def test_the_detector_receives_audio_not_just_text():
+    """smart-turn is audio native. Handing it only the transcript would make it
+    score silence."""
+    detector = ScriptedTurnDetector(fixed=1.0)
+    coord = Coordinator(
+        DICTATION,
+        engine=ScriptedEngine(
+            script={1.0: Hypothesis(stable=words("done.", each=0.4), consumed_to=1.0)}
+        ),
+        vad=ScriptedVAD(speech=((0.0, 1.0),)),
+        turn=detector,
+    )
+    drive(coord, 4.0)
+    assert detector.audio_lengths, "the detector was never called"
+    assert max(detector.audio_lengths) > 0, "the detector was handed no audio"

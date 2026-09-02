@@ -17,9 +17,11 @@ class ScriptedTurnDetector:
     fixed: float | None = None
     by_text: dict[str, float] = field(default_factory=dict)
     calls: list[str] = field(default_factory=list, init=False)
+    audio_lengths: list[int] = field(default_factory=list, init=False)
 
     def completeness(self, text: str, pcm: bytes | None = None) -> float:
         self.calls.append(text)
+        self.audio_lengths.append(len(pcm) if pcm else 0)
         if self.fixed is not None:
             return self.fixed
         if text in self.by_text:
@@ -28,3 +30,4 @@ class ScriptedTurnDetector:
 
     def reset(self) -> None:
         self.calls.clear()
+        self.audio_lengths.clear()

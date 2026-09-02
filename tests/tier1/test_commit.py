@@ -96,3 +96,91 @@ def test_gating_delays_commits_but_does_not_change_the_transcript():
     assert worst_delay(gated_events) > worst_delay(plain_events), (
         "gating did not actually hold anything back"
     )
+
+
+# -- C1 early commit ---------------------------------------------------------
+
+
+def test_early_commit_takes_a_confident_tentative_word():
+    """The other direction of C1: skip the wait when the engine is sure.
+
+    Only meaningful for an engine with a real tentative state. A greedy
+    transducer settles a word as it emits it, so there is nothing to skip.
+    """
+    policy = CommitPolicy(early_commit_confidence=0.9)
+    hypothesis = Hypothesis(tentative=(Word("sure", 0.0, 0.3, confidence=0.98),))
+    assert [w.text for w in policy.take(hypothesis, 0.3)] == ["sure"]
+
+
+def test_early_commit_is_off_by_default():
+    policy = CommitPolicy()
+    hypothesis = Hypothesis(tentative=(Word("maybe", 0.0, 0.3, confidence=1.0),))
+    assert policy.take(hypothesis, 0.3) == ()
+
+
+def test_early_commit_takes_only_a_contiguous_prefix():
+    """Filtering tentative words individually deletes the ones it skips.
+
+    A confident later word advances the commit frontier past an unconfident
+    earlier one, and the earlier word is then behind the frontier forever. This
+    really happened: it ate "The build" from the front of a test transcript
+    while leaving "is green." intact.
+    """
+    policy = CommitPolicy(early_commit_confidence=0.95)
+    hypothesis = Hypothesis(
+        tentative=(
+            Word("The", 0.0, 0.20, confidence=0.89),  # below the gate
+            Word("build", 0.22, 0.36, confidence=0.95),  # above, but after it
+            Word("is", 0.38, 0.60, confidence=0.99),
+            Word("green", 0.62, 0.76, confidence=1.0),
+        )
+    )
+    assert policy.take(hypothesis, 1.0) == ()
+    assert policy.committed_to == 0.0, "the frontier moved past an uncommitted word"
+
+
+def test_early_commit_stops_at_the_first_unconfident_word():
+    policy = CommitPolicy(early_commit_confidence=0.9)
+    hypothesis = Hypothesis(
+        tentative=(
+            Word("one", 0.0, 0.2, confidence=0.99),
+            Word("two", 0.2, 0.4, confidence=0.95),
+            Word("three", 0.4, 0.6, confidence=0.10),
+            Word("four", 0.6, 0.8, confidence=0.99),
+        )
+    )
+    assert [w.text for w in policy.take(hypothesis, 1.0)] == ["one", "two"]
+
+
+def test_a_held_word_blocks_the_words_after_it():
+    """The same no-holes rule, from the other direction.
+
+    If an unconfident word is held while a later confident one commits, the held
+    word can never be emitted without contradicting the order already sent.
+    """
+    policy = CommitPolicy(confidence_gate=0.9, slow_commit_seconds=5.0)
+    hypothesis = Hypothesis(
+        stable=(
+            Word("hold", 0.0, 0.3, confidence=0.10),
+            Word("me", 0.3, 0.6, confidence=0.99),
+        )
+    )
+    assert policy.take(hypothesis, 0.6) == ()
+    assert policy.committed_to == 0.0
+
+
+def test_the_committed_sequence_never_has_a_gap():
+    """Property check over a stream of mixed confidence hypotheses."""
+    policy = CommitPolicy(early_commit_confidence=0.8)
+    confidences = [0.99, 0.5, 0.95, 0.99, 0.3, 0.99]
+    emitted: list[Word] = []
+    for i in range(1, len(confidences) + 1):
+        tentative = tuple(
+            Word(f"w{j}", j * 0.2, j * 0.2 + 0.18, confidence=confidences[j]) for j in range(i)
+        )
+        emitted.extend(policy.take(Hypothesis(tentative=tentative), i * 0.2))
+
+    names = [w.text for w in emitted]
+    assert names == sorted(names, key=lambda n: int(n[1:])), names
+    expected = [f"w{j}" for j in range(len(names))]
+    assert names == expected, f"a hole appeared: {names}"
