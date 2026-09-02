@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# The definition of done. Every CI job is a thin wrapper over this script, so a
+# green run here predicts a green pipeline.
+#
+# Hard requirement: this must need no GPU, no network and no model downloads, and
+# it must stay fast enough that running it is never a decision. If a change makes
+# `bin/check` slow or dependent on a download, the change is wrong, not the
+# script.
+#
+# Exits 0 when everything passes, 1 on the first failure.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+PY="${PYTHON:-}"
+if [ -z "$PY" ]; then
+  if [ -x .venv/bin/python ]; then PY=.venv/bin/python; else PY=python3; fi
+fi
+
+run() {
+  echo "==> $1"
+  shift
+  "$@"
+}
+
+run "ruff (lint)"      "$PY" -m ruff check src tests
+run "ruff (format)"    "$PY" -m ruff format --check src tests
+run "mypy (types)"     "$PY" -m mypy
+run "pytest (tier 1)"  "$PY" -m pytest tests/tier1
+
+echo
+echo "all green"

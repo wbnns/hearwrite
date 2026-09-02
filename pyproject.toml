@@ -1,0 +1,68 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hearwrite"
+version = "0.1.0.dev0"
+description = "Real-time transcription, speaker labels and endpointing from open-weight models."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "wbnns" }]
+keywords = ["asr", "streaming", "diarization", "endpointing", "speech"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+# The base install has NO model runtime, on purpose. `pip install hearwrite`
+# gets the event model, the Coordinator, the fakes and the CLI, and the Tier 1
+# suite passes in seconds with no GPU, no downloads and no licences to accept.
+dependencies = []
+
+[project.optional-dependencies]
+# The blessed default: everything ONNX, everything CPU, nothing gated.
+onnx = ["sherpa-onnx>=1.13", "silero-vad>=6.2", "onnxruntime>=1.20", "numpy>=1.26"]
+# A second engine of a genuinely different shape, to prove the interface holds.
+whisper = ["faster-whisper>=1.2"]
+# The only extra that needs torch. Keep it isolated.
+sortformer = ["nemo-toolkit[asr]>=3.0", "torch>=2.4"]
+server = ["websockets>=13.0"]
+dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11"]
+all = ["hearwrite[onnx,whisper,server]"]
+
+[project.scripts]
+hearwrite = "hearwrite.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/wbnns/hearwrite"
+Source = "https://github.com/wbnns/hearwrite"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hearwrite"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/hearwrite"]
+strict_optional = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "tier2: needs real models and downloads; not run by bin/check",
+]
+addopts = "-q --strict-markers"

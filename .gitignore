@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.DS_Store
+
+# Model weights are never vendored. They are downloaded at first use and each
+# carries its own licence -- see NOTICE.
+models/
+*.onnx
+*.bin
