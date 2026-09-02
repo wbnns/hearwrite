@@ -106,12 +106,12 @@ To add, say, a new ASR engine:
   contract; if a new engine needs a Coordinator change to pass it, the
   abstraction has leaked and the fix belongs in the adapter.
 - **The WebSocket service** with admission control, in `src/hearwrite/server/`.
-- `hearwrite demo | policies | models | transcribe | serve`.
-- 86 Tier 1 tests and 11 Tier 2 tests, `bin/check`, CI.
-
+- `hearwrite demo | policies | models | transcribe | serve | bench | endpoints`.
 - **Semantic endpointing** (`src/hearwrite/turn/smart_turn.py`) with Whisper
   style features in `src/hearwrite/features.py`, plus `hearwrite endpoints`.
 - **C1 confidence gating**, both directions, in `coordinator/commit.py`.
+- 183 Tier 1 tests and 28 Tier 2 tests, `bin/check`, and CI green on 3.11 and
+  3.13.
 
 **Not built yet:** Phase 4 (a delay penalty fine tune) and Phase 5 (a learned
 per word delay). Both are training work and both stay on the roadmap until the
