@@ -98,13 +98,17 @@ To add, say, a new ASR engine:
   CPU. `src/hearwrite/models.py` resolves, downloads and checksums weights.
 - **The speaker frontend** (`src/hearwrite/speakers/sherpa.py`) and the metrics
   module, plus `hearwrite bench`. Diarization works end to end.
+- **Two ASR engines**: the sherpa transducer (default) and faster-whisper with
+  LocalAgreement. `tests/tier1/test_engine_parity.py` holds them to the same
+  contract; if a new engine needs a Coordinator change to pass it, the
+  abstraction has leaked and the fix belongs in the adapter.
 - **The WebSocket service** with admission control, in `src/hearwrite/server/`.
 - `hearwrite demo | policies | models | transcribe | serve`.
 - 86 Tier 1 tests and 11 Tier 2 tests, `bin/check`, CI.
 
-**Not built yet:** the faster-whisper second engine (Phase 1c) and semantic
-endpointing (Phase 3). The endpoint gate currently runs acoustic only, because
-no turn detector is wired in.
+**Not built yet:** semantic endpointing (Phase 3). The endpoint gate runs
+acoustic only today, because no turn detector is wired in, so `_completeness()`
+returns 1.0 and the conjunction reduces to the silence timer.
 
 ## The clustering threshold is calibration, not taste
 

@@ -50,8 +50,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     transcribe = sub.add_parser("transcribe", help="transcribe a 16kHz mono WAV file")
     transcribe.add_argument("path")
     transcribe.add_argument("--policy", default="dictation", choices=sorted(PRESETS))
-    transcribe.add_argument("--model", default="zipformer-en")
+    transcribe.add_argument(
+        "--engine",
+        default="sherpa",
+        choices=("sherpa", "whisper"),
+        help="sherpa is the streaming transducer; whisper is offline with LocalAgreement",
+    )
+    transcribe.add_argument(
+        "--model",
+        default=None,
+        help="model name; defaults to zipformer-en for sherpa, base for whisper",
+    )
     transcribe.add_argument("--speaker-model", default="titanet-small")
+    transcribe.add_argument("--language", default=None, help="whisper only; auto if unset")
     transcribe.add_argument("--chunk", type=float, default=0.02)
     transcribe.add_argument("--threads", type=int, default=2)
     transcribe.add_argument("--json", action="store_true", help="emit the raw event log")
@@ -63,7 +74,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     bench.add_argument("path", help="WAV file with a sibling .json of ground truth")
     bench.add_argument("--policy", default="conversation", choices=sorted(PRESETS))
     bench.add_argument("--speaker-model", default="titanet-small")
-    bench.add_argument("--model", default="zipformer-en")
+    bench.add_argument("--engine", default="sherpa", choices=("sherpa", "whisper"))
+    bench.add_argument("--model", default=None)
+    bench.add_argument("--language", default=None)
     bench.add_argument("--threads", type=int, default=2)
 
     serve = sub.add_parser("serve", help="run the WebSocket service")
@@ -185,13 +198,27 @@ def _bench(args) -> int:
     return 0
 
 
+def _build_engine(args):
+    """Whichever engine was asked for. The Coordinator cannot tell them apart."""
+    if getattr(args, "engine", "sherpa") == "whisper":
+        from .engines.whisper import WhisperStreamingEngine
+
+        return WhisperStreamingEngine.from_model(
+            args.model or "base",
+            num_threads=args.threads,
+            language=getattr(args, "language", None),
+        )
+    from .engines.sherpa import SherpaStreamingEngine
+
+    return SherpaStreamingEngine.from_model(args.model or "zipformer-en", num_threads=args.threads)
+
+
 def _run_pipeline(args, policy, pcm):
     """Build the real pipeline and run PCM through it. Shared by transcribe and bench."""
     from . import audio
-    from .engines.sherpa import SherpaStreamingEngine
     from .vad.silero import SileroVAD
 
-    engine = SherpaStreamingEngine.from_model(args.model, num_threads=args.threads)
+    engine = _build_engine(args)
     vad = SileroVAD.from_model()
     speakers = None
     if not policy.is_solo:
@@ -219,12 +246,11 @@ def _transcribe(args) -> int:
         print(f"hearwrite transcribe: {exc}", file=sys.stderr)
         return 2
 
-    from .engines.sherpa import SherpaStreamingEngine
     from .vad.silero import SileroVAD
 
     policy = preset(args.policy)
     try:
-        engine = SherpaStreamingEngine.from_model(args.model, num_threads=args.threads)
+        engine = _build_engine(args)
         vad = None if args.no_vad else SileroVAD.from_model()
         # Solo mode skips the frontend entirely, so do not even build it.
         speakers = None

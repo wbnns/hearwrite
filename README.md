@@ -32,6 +32,7 @@ Measured on Apple silicon, CPU only:
 | Real time factor | **0.03** |
 | Speaker confusion | **3.1%** at 2 speakers, **7.6%** at 24 |
 | Speaker count | discovered, exact at 2, 4, 8, 16 and 24 |
+| Engines | streaming transducer (default) and Whisper, same interface |
 
 **Read the caveats before trusting those diarization numbers.** They are on
 clean read speech with a pause at every turn boundary and no overlap, which is
@@ -109,7 +110,7 @@ src/hearwrite/
     endpoint.py          the conjunctive acoustic + semantic gate
     policy.py            speaker mode and endpoint mode, orthogonal
     backpressure.py      drop partials, never commits
-  engines/             ASR wrappers   (interface defined to the transducer)
+  engines/             ASR wrappers: sherpa (default) and whisper
   speakers/            speaker frontend wrappers
   vad/                 acoustic gate wrappers
   turn/                semantic gate wrappers

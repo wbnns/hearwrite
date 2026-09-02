@@ -5,6 +5,38 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added -- Phase 1c: a second engine, and the proof the interface holds
+
+**faster-whisper behind the same interface**, using LocalAgreement: transcribe a
+growing buffer repeatedly, and treat the prefix two consecutive passes agree on
+as settled. `push()` returning None is the same blank decision a transducer
+makes per chunk, here meaning no new pass has run.
+
+**Adding it required zero changes to `coordinator/`, `protocol.py`, `events.py`
+or `engines/base.py`.** One new file. That is the payoff for defining the ASR
+interface against a transducer's shape in Phase 0, before any real engine
+existed, on the argument that designing to the easier case first guarantees a
+rewrite. `tests/tier1/test_engine_parity.py` runs one scenario through both
+engine shapes and asserts the contract holds identically for each.
+
+**Measured, on the same clip.** The transducer commits at p50 0.52s with a real
+time factor of 0.029 and installs one package. Whisper commits at p50 1.62s with
+a real time factor of 0.230 and installs twenty, and returns punctuation, casing
+and roughly a hundred languages. Neither is strictly better, which is why both
+ship and why `--engine` exists.
+
+**The Whisper buffer is trimmed at the agreement point.** Cost per pass is
+roughly constant regardless of how much real audio arrived, so an untrimmed
+buffer makes a three minute session degrade in a way a ten second demo never
+does. That is the structural limit the design doc names, and it is guarded by a
+test rather than a comment.
+
+### Note
+
+The Whisper extra downloads from the Hugging Face hub rather than from
+`hearwrite.models`, so the pinned checksum guarantee that covers every other
+model does not extend to it. Recorded in NOTICE.
+
 ### Added -- Phase 1b: it hears who is talking
 
 **Online speaker labels, with no fixed speaker count.** A speaker frontend built

@@ -52,6 +52,13 @@ hearwrite[whisper] -- second engine
   CTranslate2 (OpenNMT)                    MIT
   Whisper checkpoints (OpenAI)             MIT / Apache-2.0
 
+  NOTE: unlike every model in hearwrite.models, these are fetched from the
+  Hugging Face hub by faster-whisper itself. They are ungated and need no
+  token, but HearWrite does not pin their checksums, so the integrity
+  guarantee that covers the rest of the registry does not extend to them.
+  NOTE: faster-whisper has had no commit since 2025-11 and pulls about twenty
+  transitive dependencies. It is the alternative engine, not the default.
+
 --------------------------------------------------------------------------------
 hearwrite[sortformer] -- optional diarization backend (needs torch)
 --------------------------------------------------------------------------------

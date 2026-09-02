@@ -252,3 +252,91 @@ def test_more_speakers_does_not_collapse_the_clustering():
     report = _diarize(wav)
     assert report.predicted_speakers == 8
     assert report.confusion_rate < 0.15
+
+
+# -- the second engine -------------------------------------------------------
+
+
+def _have_whisper() -> bool:
+    try:
+        import faster_whisper  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+needs_whisper = pytest.mark.skipif(not _have_whisper(), reason="pip install 'hearwrite[whisper]'")
+
+
+@needs_whisper
+def test_whisper_runs_through_the_unmodified_coordinator(speech):
+    """The Phase 0 bet, against a real offline model.
+
+    Whisper is an encoder-decoder that wants the whole utterance. If the
+    interface had been designed around it, a transducer would have needed a
+    rewrite; because it was designed around a transducer, this adapter fits
+    without the Coordinator knowing anything changed.
+    """
+    from hearwrite import DICTATION, Coordinator
+    from hearwrite.audio import chunks
+    from hearwrite.engines.whisper import WhisperStreamingEngine
+
+    coordinator = Coordinator(
+        DICTATION,
+        engine=WhisperStreamingEngine.from_model("tiny.en", language="en"),
+    )
+    events = []
+    for piece in chunks(speech, 0.02):
+        events.extend(coordinator.push(piece))
+    events.extend(coordinator.finish())
+
+    assert coordinator.log.committed_text.strip()
+    times = [e.at for e in events]
+    assert times == sorted(times)
+    frontier = 0.0
+    for event in events:
+        if event.kind == "commit":
+            assert event.payload["audio_start"] + 1e-6 >= frontier
+            frontier = event.payload["audio_end"]
+
+
+@needs_whisper
+def test_whisper_produces_punctuation_the_transducer_does_not(speech):
+    """The reason this engine exists despite being slower and heavier."""
+    from hearwrite import DICTATION, Coordinator
+    from hearwrite.audio import chunks
+    from hearwrite.engines.whisper import WhisperStreamingEngine
+
+    coordinator = Coordinator(
+        DICTATION,
+        engine=WhisperStreamingEngine.from_model("tiny.en", language="en"),
+    )
+    for piece in chunks(speech, 0.02):
+        coordinator.push(piece)
+    coordinator.finish()
+    text = coordinator.log.committed_text
+    assert any(mark in text for mark in ".?!,"), text
+    assert text != text.upper(), "expected mixed case, got shouting"
+
+
+@needs_whisper
+def test_whisper_buffer_stays_bounded_over_a_long_session(speech):
+    """Whisper's structural weakness: cost per pass grows with the buffer.
+
+    A three minute session must not carry three minutes of audio in memory, or
+    the real time factor climbs until it exceeds 1.0 and never recovers.
+    """
+    from hearwrite.audio import chunks
+    from hearwrite.engines.whisper import WhisperStreamingEngine
+
+    engine = WhisperStreamingEngine.from_model("tiny.en", language="en")
+    long_audio = speech * 8
+    at = 0.0
+    for piece in chunks(long_audio, 0.02):
+        at += len(piece) / 2 / SR
+        engine.push(piece, at)
+    assert at > 30.0, "fixture too short to prove anything"
+    assert len(engine._buffer) <= int(30 * SR), (
+        f"buffer grew to {len(engine._buffer) / SR:.1f}s over a {at:.0f}s session"
+    )

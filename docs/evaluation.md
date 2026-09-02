@@ -30,6 +30,30 @@ The design doc set p50 under 600ms as a Phase 3 target. A streaming transducer
 clears it with no confidence gating at all, which is the argument for making it
 the default engine rather than a later milestone.
 
+## Engines compared
+
+The same 5.4s clip, same machine, same Coordinator. `zipformer-en` against
+Whisper `tiny.en`:
+
+| | sherpa (transducer) | whisper (LocalAgreement) |
+|---|---|---|
+| Transcript | `TO BUILD IS GREEN I THINK WE CAN SHIP AT THIS AFTERNOON` | `The build is green. I think we can ship at this afternoon.` |
+| Emission delay p50 | 0.52s | 1.62s |
+| Emission delay p90 | 1.21s | 1.99s |
+| Real time factor | 0.029 | 0.230 |
+| Install | 1 package | 20 packages |
+
+This is the whole Track A versus Track B argument, measured. The transducer
+commits three times sooner and costs eight times less. Whisper gets punctuation,
+casing and about a hundred languages. Neither is strictly better, which is why
+both ship and why the interface had to accommodate both from the start.
+
+The Whisper numbers also understate its problem. Its cost per pass is roughly
+constant regardless of how much real audio arrived, so a three minute session
+degrades in a way a five second clip does not. The buffer is trimmed at the
+agreement point to bound that, and `test_whisper_buffer_stays_bounded_over_a_long_session`
+is the guard.
+
 ## Diarization
 
 Word level speaker confusion against known turns. LibriSpeech `dev-clean`
