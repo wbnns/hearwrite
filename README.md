@@ -64,7 +64,8 @@ estimate.
 | Speaker confusion | **3.1%** at 2 speakers, **7.6%** at 24 |
 | Speaker count | discovered, exact at 2, 4, 8, 16 and 24 |
 | False endpoint | **5.0%** of mid thought pauses |
-| Real time factor | **0.26** with the default recogniser, **0.047** with the light one |
+| Real time factor | **0.26** with the default recogniser, **0.045** with the light one |
+| Emission delay | p50 **0.44s** default, 0.36s at 80ms lookahead for 85% more CPU |
 | Memory | ~340MB shared, ~3MB per session |
 
 **Read the caveats before trusting the diarization and endpointing numbers.**

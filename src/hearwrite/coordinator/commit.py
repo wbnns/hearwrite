@@ -73,7 +73,9 @@ class CommitPolicy:
         from the transcript entirely.
         """
         candidates = sorted(hypothesis.stable, key=lambda w: w.audio_start)
-        if self._early <= 1.0:
+        # A fragment is not a candidate. Taking one early does not commit a word
+        # sooner, it commits half a word forever.
+        if self._early <= 1.0 and not hypothesis.tentative_is_fragment:
             # Only a contiguous PREFIX of the tentative words may be taken.
             # Filtering them individually by confidence picks a scattered
             # subset, and committing a confident later word advances the

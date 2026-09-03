@@ -98,6 +98,27 @@ REGISTRY: dict[str, ModelSpec] = {
     # Measured on this hardware at 160ms: real time factor 0.22 against 0.05 for
     # the zipformer, so about four times the cost for a transcript a person can
     # actually read.
+    # The 80ms export exists and is registered so the trade is checkable, but it
+    # is NOT the default: measured on the same clip it costs nearly twice the
+    # CPU (real time factor 0.45 against 0.24) for no measurable gain in
+    # emission delay. Smaller chunks buy latency only while the machine can keep
+    # up with them.
+    "nemotron-3.5-80ms": ModelSpec(
+        name="nemotron-3.5-80ms",
+        url=(
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/"
+            "sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-80ms-int8-2026-06-11.tar.bz2"
+        ),
+        licence="OpenMDW-1.1",
+        languages="40 locales",
+        approx_mb=453,
+        summary="Nemotron 3.5 streaming, 80ms lookahead. Twice the CPU of 160ms.",
+        sha256="fb170128c496db33a1fb9f5f9f823257f42f911224ee218bb429f3c2eaf90a8d",
+        punctuates=True,
+        encoder=("encoder.int8.onnx",),
+        decoder=("decoder.int8.onnx",),
+        joiner=("joiner.int8.onnx",),
+    ),
     "nemotron-3.5-160ms": ModelSpec(
         name="nemotron-3.5-160ms",
         url=(

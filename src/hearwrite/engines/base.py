@@ -57,6 +57,20 @@ class Hypothesis:
     stable: tuple[Word, ...] = ()
     tentative: tuple[Word, ...] = ()
     consumed_to: float = 0.0
+    #: True when the LAST tentative word may still be a fragment rather than a
+    #: whole word.
+    #:
+    #: The two engine shapes mean different things by "tentative" and the
+    #: difference is not cosmetic. A transducer assembles a word from sub word
+    #: pieces, so its trailing entry can be "Ja" on the way to "January".
+    #: LocalAgreement over an offline model yields whole words that may later be
+    #: replaced by other whole words.
+    #:
+    #: Committing the first kind early truncates it. Measured: with early commit
+    #: on, "The Times January 3rd 2009 Chancellor" came back as "The Time Ja
+    #: third 2009 Ch". So a fragment is shown as a partial and never committed
+    #: ahead of the engine.
+    tentative_is_fragment: bool = False
 
     @property
     def all_words(self) -> tuple[Word, ...]:

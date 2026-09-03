@@ -156,7 +156,15 @@ class SherpaStreamingEngine:
         if final:
             # End of stream: nothing can change any more, so nothing is tentative.
             return Hypothesis(stable=tuple(self._words) + tail, consumed_to=self._consumed_to)
-        return Hypothesis(stable=tuple(self._words), tentative=tail, consumed_to=self._consumed_to)
+        return Hypothesis(
+            stable=tuple(self._words),
+            tentative=tail,
+            consumed_to=self._consumed_to,
+            # The trailing word is assembled from sub word pieces and may be
+            # half built: "Ja" on the way to "January". Committing it early
+            # would deliver half a word permanently, not a word sooner.
+            tentative_is_fragment=True,
+        )
 
 
 def _assemble(tokens: list[tuple[str, float, float]], *, cap: float) -> Word:

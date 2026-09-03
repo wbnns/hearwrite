@@ -258,6 +258,43 @@ and two numbers to a rule, and converting it needs year specific heuristics that
 would also mangle "nineteen eighty four people". Under conversion is invisible;
 over conversion corrupts the transcript.
 
+## Choosing the chunk size
+
+Nemotron ships at five lookaheads and the chunk size is the latency dial, baked
+into the export. Smaller is not automatically better, because a smaller chunk
+means more forward passes per second of audio. Measured end to end on the same
+clip:
+
+| Model | Emission p50 | p90 | Real time factor |
+|---|---|---|---|
+| `nemotron-3.5-80ms` | 0.36s | 0.92s | 0.47 |
+| `nemotron-3.5-160ms` (default) | 0.44s | 1.00s | **0.26** |
+| `zipformer-en` + polish | 0.52s | 0.88s | 0.045 |
+
+80ms buys 80 milliseconds of median delay for 85% more CPU. That is a poor trade
+on a laptop and a worse one on a VPS, so 160ms is the default. The 80ms export
+stays registered so the trade is checkable rather than asserted.
+
+Note the zipformer row: it has the LOWEST p90 of the three despite the highest
+p50, because a cheaper model finishes its tail sooner. Median and tail latency
+do not move together.
+
+## C1 early commit does not apply to a transducer
+
+The two engine shapes mean different things by "tentative", and the difference
+is not cosmetic.
+
+A transducer assembles a word from sub word pieces, so its trailing entry can be
+"Ja" on the way to "January". LocalAgreement over an offline model yields whole
+words that may later be replaced by other whole words.
+
+Committing the first kind early truncates it. Measured with early commit on and
+no guard: `The Times January 3rd 2009 Chancellor` came back as `The Time Ja
+third 2009 Ch`. A `Hypothesis` now declares whether its tail is a fragment, and
+the commit policy refuses to take one early. So C1's early direction remains
+useful behind Whisper, where it cut median delay from 1.62s to 0.64s, and is
+inert behind a transducer, where it was never anything but damage.
+
 ## Accelerators
 
 **Measured, and the answer is not the expected one.** On Apple silicon with the

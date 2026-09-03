@@ -184,3 +184,35 @@ def test_the_committed_sequence_never_has_a_gap():
     assert names == sorted(names, key=lambda n: int(n[1:])), names
     expected = [f"w{j}" for j in range(len(names))]
     assert names == expected, f"a hole appeared: {names}"
+
+
+def test_a_fragment_is_never_committed_early():
+    """A transducer's trailing tentative entry is half a word, not a whole one.
+
+    Committing it early does not deliver a word sooner, it delivers "Ja" instead
+    of "January", permanently. Measured before this guard existed: "The Times
+    January 3rd 2009 Chancellor" came back as "The Time Ja third 2009 Ch".
+    """
+    policy = CommitPolicy(early_commit_confidence=0.5)
+    fragment = Hypothesis(
+        tentative=(Word("Ja", 0.0, 0.2, confidence=0.99),),
+        tentative_is_fragment=True,
+    )
+    assert policy.take(fragment, 1.0) == ()
+    assert policy.committed_to == 0.0
+
+
+def test_a_whole_tentative_word_is_still_eligible():
+    """LocalAgreement yields whole words, so early commit still applies there."""
+    policy = CommitPolicy(early_commit_confidence=0.5)
+    whole = Hypothesis(tentative=(Word("January", 0.0, 0.5, confidence=0.99),))
+    assert [w.text for w in policy.take(whole, 1.0)] == ["January"]
+
+
+def test_the_transducer_adapter_declares_its_tentative_is_a_fragment():
+    """The guard is only as good as the engine that sets the flag."""
+    import inspect
+
+    from hearwrite.engines import sherpa
+
+    assert "tentative_is_fragment=True" in inspect.getsource(sherpa)
