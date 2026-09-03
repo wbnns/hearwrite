@@ -41,7 +41,7 @@ VIDEO = """  <figure class="demo">
       words are committed and never will. The speaker label arrives a beat late,
       once there is enough voice to identify one. Delay p50 settles at 0.43s.
       <a href="https://github.com/wbnns/hearwrite">Run it yourself</a> for a live
-      one &mdash; it is one command, and it needs no GPU and no API key.</figcaption>
+      one. It is one command, and it needs no GPU and no API key.</figcaption>
   </figure>
 """
 
@@ -52,6 +52,26 @@ STYLE = """  .demo { margin:0 0 34px; }
   .demo figcaption { margin-top:14px; color:var(--text-secondary); font-size:13px;
                      line-height:1.65; max-width:72ch; }
 """
+
+# Link preview tags, on the published copy only. They carry absolute URLs, and
+# the server serving this page on localhost has no business advertising them.
+# og:image is scripts/og.html rendered by scripts/build_og.py, so the numbers on
+# the image are the numbers on the page.
+SITE = "https://hearwrite.wbnns.com/"
+OG = """<meta property="og:type" content="website">
+<meta property="og:site_name" content="HearWrite">
+<meta property="og:url" content="{site}">
+<meta property="og:title" content="HearWrite: streaming ASR, diarization and endpointing on CPU">
+<meta property="og:description" content="Real time speech to text with speaker labels and semantic endpointing, assembled from open weight models. Runs on a laptop CPU with no GPU and no API key.">
+<meta property="og:image" content="{site}og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="HearWrite. Streaming ASR, diarization and endpointing on CPU. A transcript line labelled Speaker A, with measured figures: 0.28s median emission delay, 4.4% word error rate, 0.05x real time factor, 340MB memory.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="{site}">
+""".format(site=SITE)
+
 
 # The live page can claim its own numbers because the machine serving it is the
 # machine that produced them. A static page on someone else's CDN cannot, so the
@@ -92,7 +112,14 @@ def build(source: str) -> str:
     page = page.replace(OLD_SUB, NEW_SUB)
     steps += 1
 
-    # 4. Styles for the figure, kept beside the source's own rules.
+    # 4. Link preview tags, immediately after the description they extend.
+    desc_end = 'no API key.">\n'
+    if desc_end not in page:
+        raise SystemExit("could not find the description tag to anchor OG tags to")
+    page = page.replace(desc_end, desc_end + OG, 1)
+    steps += 1
+
+    # 5. Styles for the figure, kept beside the source's own rules.
     marker = "  .tiles {"
     if marker not in page:
         raise SystemExit("could not find an anchor for the demo styles")
@@ -107,8 +134,8 @@ def build(source: str) -> str:
 
     if "id=\"mic\"" in page or "WebSocket" in page:
         raise SystemExit("interactive leftovers survived the transform")
-    if steps != 4:
-        raise SystemExit(f"expected 4 transforms, ran {steps}")
+    if steps != 5:
+        raise SystemExit(f"expected 5 transforms, ran {steps}")
     return page
 
 

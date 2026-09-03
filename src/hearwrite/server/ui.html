@@ -1,7 +1,8 @@
 <!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>HearWrite</title>
+<title>HearWrite: streaming ASR, diarization and endpointing on CPU</title>
+<meta name="description" content="Real time speech to text with speaker labels and semantic endpointing, assembled from open weight models. Runs on a laptop CPU with no GPU and no API key.">
 <style>
   :root {
     --bg:#0b0b0d; --card:#141417; --edge:#26262b; --fg:#f2f2f0; --dim:#8a8a92;
@@ -149,8 +150,8 @@
     <div class="wave">
       <canvas id="bars"></canvas>
       <div class="stat">
-        <span>delay p50<b id="p50">&mdash;</b></span>
-        <span>p90<b id="p90">&mdash;</b></span>
+        <span>delay p50<b id="p50">-</b></span>
+        <span>p90<b id="p90">-</b></span>
         <span>words<b id="words">0</b></span>
         <span>speakers<b id="spk">0</b></span>
       </div>
@@ -244,7 +245,7 @@ hearwrite serve --open</pre>
 
   <footer>
     MIT licensed. Model weights carry their own terms and are downloaded, never
-    redistributed &mdash; see NOTICE in the repository.
+    redistributed. See NOTICE in the repository.
     <a href="https://github.com/wbnns/hearwrite">github.com/wbnns/hearwrite</a>
   </footer>
 </div>

@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Link metadata and a preview image.** A descriptive title and meta
+  description on both copies of the page, and OpenGraph plus Twitter card tags
+  on the published copy only, since they carry absolute URLs that a page served
+  from localhost has no business advertising. The preview image is
+  `scripts/og.html` rendered by `scripts/build_og.py`, so it inherits the site's
+  palette and font stack and the figures on it are the figures the page
+  publishes, rather than a hand drawn asset that goes stale on its own.
 - **A published page at hearwrite.wbnns.com**, built by `scripts/build_site.py`
   from the page the server itself serves, so the public copy cannot drift from
   the live one. The interactive card becomes a recording of a real session and

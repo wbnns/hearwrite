@@ -1,0 +1,65 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- Source for docs/og.png, the link preview image. Rendered at 1200x630 by a
+     headless browser rather than drawn by hand, so it uses the site's own
+     palette and font stack and the numbers stay copy-pasteable from the page.
+
+     To re-render after editing:
+       python3 scripts/build_og.py
+-->
+<title>HearWrite link preview</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 1200px; height: 630px; overflow: hidden;
+    background: #0b0b0d; color: #f2f2f0;
+    font: 16px/1.65 ui-sans-serif, -apple-system, "SF Pro Text", system-ui, sans-serif;
+    display: flex; flex-direction: column;
+    padding: 54px 64px;
+  }
+  .top { display: flex; align-items: baseline; justify-content: space-between; }
+  .mark { font-size: 27px; font-weight: 700; letter-spacing: -0.02em; }
+  .url { font: 17px ui-monospace, SFMono-Regular, Menlo, monospace; color: #8a8a92; }
+
+  h1 {
+    margin: 40px 0 0; font-size: 49px; line-height: 1.16;
+    font-weight: 700; letter-spacing: -0.028em; max-width: 21ch;
+  }
+  .sub { margin: 20px 0 0; font-size: 21px; line-height: 1.5; color: #8a8a92; max-width: 52ch; }
+
+  /* A strip of the real output, so the preview shows the thing itself. */
+  .strip {
+    margin-top: auto; background: #141417; border: 1px solid #26262b;
+    border-radius: 14px; padding: 20px 24px;
+    display: flex; align-items: center; gap: 22px;
+  }
+  .who { color: #3987e5; font-size: 15px; flex: 0 0 auto; }
+  .said { font-size: 25px; letter-spacing: -0.01em; }
+  .live { background: #1e3a6d; color: #c9dcff; border-radius: 4px; padding: 1px 5px; }
+
+  .stats { margin-top: 26px; display: flex; gap: 56px; }
+  .stat .n { font: 600 27px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .stat .l { font-size: 14px; color: #8a8a92; margin-top: 3px; }
+</style>
+
+<div class="top">
+  <div class="mark">HearWrite</div>
+  <div class="url">hearwrite.wbnns.com</div>
+</div>
+
+<h1>Streaming ASR, diarization and endpointing on CPU.</h1>
+<p class="sub">Real time speech to text with speaker labels and semantic
+  endpointing, assembled from open weight models. No GPU, no API key.</p>
+
+<div class="strip">
+  <span class="who">Speaker A</span>
+  <span class="said">The quick brown fox jumps over the lazy <span class="live">dog</span></span>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="n">0.28s</div><div class="l">median emission delay</div></div>
+  <div class="stat"><div class="n">4.4%</div><div class="l">word error rate, LibriSpeech dev-clean</div></div>
+  <div class="stat"><div class="n">0.05&times;</div><div class="l">real time factor, light recogniser</div></div>
+  <div class="stat"><div class="n">340MB</div><div class="l">memory, shared across sessions</div></div>
+</div>
