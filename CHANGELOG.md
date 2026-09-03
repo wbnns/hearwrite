@@ -5,6 +5,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **The last word of an utterance no longer waits for the session to end.** A
+  transducer holds its trailing word until a new word starts, so a short
+  utterance left its final word tentative until the user pressed stop: measured
+  at 5.90s from spoken to final. The commit policy now settles the held word
+  when the acoustic gate reports silence, which is the signal that the word
+  itself is finished, rather than waiting for the endpoint, which also needs the
+  semantic gate. The same word now commits in 0.60s.
+- The demo page reported the wrong percentiles for short sessions. Indexing at
+  `floor(n * q)` returns the maximum for n = 2, so a two word session displayed
+  its worst delay as both p50 and p90. Now nearest rank.
+- Silence in the demo waveform drew as a row of 2px bars, which read as a dotted
+  rule rather than as quiet. It is a continuous baseline now.
+- The last committed word kept its "just landed" highlight indefinitely, because
+  the highlight was only cleared by the next commit. An endpoint clears it too.
+- The demo's speaker gutter no longer indents the transcript by 116px before any
+  speaker has been identified, which is every solo and every short session.
+
 ### Added
 
 **A demo page rather than a demo.** The live transcription card now sits in a

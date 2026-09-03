@@ -117,6 +117,28 @@ class CommitPolicy:
             self._committed_to = max(self._committed_to, word.audio_end)
         return tuple(ready)
 
+    def settle(self, hypothesis: Hypothesis) -> tuple[Word, ...]:
+        """Commit whatever is still tentative, without ending the stream.
+
+        Called when an endpoint says the utterance is over. A transducer holds
+        its trailing word until a NEW word starts, so a final word with nothing
+        after it waits for end of stream: say "test", stop talking, and it sits
+        tentative until you close the session. Measured before this existed, a
+        word spoken at 2.64s was committed at 8.70s -- a delay of 5.9 seconds
+        for the last word of every utterance.
+
+        Safe at an endpoint specifically, because an endpoint requires real
+        silence, and silence is the trailing audio the model needed to finish
+        the word. It is not safe mid utterance, which is why this is not the
+        same as lowering the early commit threshold.
+        """
+        ready = [w for w in hypothesis.tentative if w.audio_start + 1e-6 >= self._committed_to]
+        ready.sort(key=lambda w: w.audio_start)
+        for word in ready:
+            self._committed_to = max(self._committed_to, word.audio_end)
+        self._held.clear()
+        return tuple(ready)
+
     def flush(self, hypothesis: Hypothesis) -> tuple[Word, ...]:
         """End of stream: everything still pending becomes final."""
         ready = [

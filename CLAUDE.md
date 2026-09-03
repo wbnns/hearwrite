@@ -202,6 +202,14 @@ Each of these was found by running audio, not by reasoning, and each has a test:
   So `flush()` feeds silence, or the end of every session is lost, and turn
   membership is decided by a word's AUDIO position rather than by which turn
   happened to be open when it arrived.
+- **It also holds the last word of every utterance.** A transducer only makes its
+  trailing word stable once a NEW word starts, so saying one word and stopping
+  leaves it tentative to end of stream. Measured: a word spoken at 2.64s
+  committed at 8.70s, when the user pressed stop. `CommitPolicy.settle` releases
+  it once the ACOUSTIC gate alone reports silence, which brought that word to
+  0.60s. Note which gate: whether the WORD is finished is settled by silence,
+  whether the TURN is finished needs the semantic gate too, and waiting for the
+  second to answer the first is what cost the five seconds.
 - **The VAD and the ASR disagree about where speech ends.** The acoustic gate
   called silence at 1.04s on a clip whose next word ran to 1.32s. Do not assume
   an endpoint means the transcript is complete up to that point.

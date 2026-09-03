@@ -216,3 +216,34 @@ def test_the_transducer_adapter_declares_its_tentative_is_a_fragment():
     from hearwrite.engines import sherpa
 
     assert "tentative_is_fragment=True" in inspect.getsource(sherpa)
+
+
+def test_settle_releases_a_word_the_engine_is_still_holding():
+    """A transducer holds its final word until a new word starts.
+
+    Say one word then stop, and it stays tentative to end of stream. Measured on
+    a real session: a word spoken at 2.64s was committed at 8.70s, when the user
+    pressed stop, for a delay of 5.9 seconds. Silence is the signal that the
+    word itself is finished, which is a different question from whether the turn
+    is finished, and it is answered a lot sooner.
+    """
+    policy = CommitPolicy()
+    held = Word(text="test", audio_start=2.64, audio_end=2.80, confidence=0.9)
+    hypothesis = Hypothesis(stable=(), tentative=(held,), consumed_to=2.80)
+
+    assert policy.take(hypothesis, now=3.0) == ()
+    assert policy.settle(hypothesis) == (held,)
+
+
+def test_settle_never_re_emits_a_committed_word():
+    """settle runs on every silent frame, so it must be idempotent.
+
+    Without the frontier check it would re-emit the same word at 50Hz, and the
+    append-only rule would make every duplicate permanent.
+    """
+    policy = CommitPolicy()
+    word = Word(text="test", audio_start=2.64, audio_end=2.80, confidence=0.9)
+    hypothesis = Hypothesis(stable=(), tentative=(word,), consumed_to=2.80)
+
+    assert policy.settle(hypothesis) == (word,)
+    assert policy.settle(hypothesis) == ()

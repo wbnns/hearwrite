@@ -95,6 +95,9 @@ class Coordinator:
         #: the speech leading up to the pause, and wrappers are stateless, so
         #: the buffer lives here with the rest of the state.
         self._recent = bytearray()
+        #: The most recent hypothesis, so an endpoint can release a word the
+        #: engine is still holding.
+        self._latest: Hypothesis | None = None
         self._scored_at = -1.0
         self._recent_limit = int(policy.turn_context_seconds * policy.sample_rate) * 2
         #: Commit seq numbers still waiting for a speaker label, with the audio
@@ -143,6 +146,7 @@ class Coordinator:
         hypothesis = self._engine.push(pcm, at)
         # None is the transducer's blank: audio was processed, nothing to say.
         if hypothesis is not None:
+            self._latest = hypothesis
             self._emit_words(self._commit.take(hypothesis, at), at)
             self._emit_partial(hypothesis, at)
 
@@ -364,6 +368,16 @@ class Coordinator:
     def _close_endpoint(self, state: SpeechState | None, at: float) -> None:
         if state is None:
             return
+        # A held word only needs to know that IT is finished, which silence
+        # settles, not that the TURN is finished, which needs the semantic gate
+        # and can be seconds later. Releasing it on the acoustic gate alone took
+        # the last word of an utterance from 5.9s to under a second.
+        if (
+            self._latest is not None
+            and self._endpoint.silence_held(at) >= self.policy.endpoint.silence_seconds
+        ):
+            self._emit_words(self._commit.settle(self._latest), at)
+
         completeness = self._maybe_score(state, at)
         endpoint = self._endpoint.observe(state, completeness)
         if endpoint is not None:
@@ -394,6 +408,8 @@ class Coordinator:
         return self._completeness()
 
     def _emit_endpoint(self, at: float, reason, completeness: float) -> None:
+        # Anything the engine was holding has already been released by the
+        # silence check in _close_endpoint, which fires earlier.
         self.log.emit(
             EventKind.ENDPOINT,
             at,
