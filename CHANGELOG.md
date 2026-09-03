@@ -3,6 +3,44 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+**`hearwrite wer`**, so the accuracy claim is reproducible rather than asserted.
+Corpus WER over a LibriSpeech style directory, reporting substitutions,
+deletions and insertions separately because they mean different things: a
+deletion is audio the model missed, an insertion is a word it invented, and one
+percentage hides which.
+
+The normalisation is where the work is. Case and punctuation are stripped from
+both sides, so a model is not charged three errors for writing "The Times,
+January" against a bare uppercase reference. Digits are spoken back out, so
+inverse text normalisation -- a feature that improves the transcript -- stops
+being scored as three errors. And the "and" in "three hundred and forty two"
+is dropped between number words, because keeping it measures which side of the
+Atlantic a corpus came from.
+
+Measured: `zipformer-en` 4.40% and `nemotron-3.5-160ms` 6.81% on LibriSpeech
+dev-clean, streaming at 160ms lookahead on CPU.
+
+**A section on comparing against published leaderboards**, which says plainly
+that HearWrite cannot claim a place on the AA-WER Streaming Index because its
+corpus is not reproducible, and has not run AMI or VoxConverse for DER although
+they are public. Running our own audio and calling it comparable would be a
+category error -- WER moves more between corpora than between good systems.
+
+It also records the bias in the number we do have: zipformer was trained on
+LibriSpeech, and its wins concentrate in the proper nouns of the books it is
+read from. Nemotron heard "KALIKO" as "Callagh"; zipformer knows the name
+because it has read the book. The honest reading is "both are in the 4 to 7%
+range on easy read speech", not "zipformer is better".
+
+**A rebuilt demo page.** A centred card, the speaker on the left, large type,
+the most recent word highlighted the way a caption marks what is being said, and
+a live waveform drawn from the same samples that go to the recogniser rather than
+a second analyser -- so what you see is what it is hearing, silences included.
+
 ## [0.1.0] -- 2026-09-03
 
 Not 1.0. The event protocol is frozen and the transcription pipeline is solid,

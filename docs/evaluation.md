@@ -16,6 +16,66 @@ The diarization fixtures are built from LibriSpeech `dev-clean` (CC BY 4.0),
 which is not vendored. `scripts/build_fixtures.py` downloads it and assembles
 conversations with known speakers and known turn boundaries.
 
+## Comparing against published leaderboards
+
+Muse Voice Transcribe publishes 3.1% on the AA-WER Streaming Index and 17.5%
+average DER on AMI-IHM, AMI-SDM and VoxConverse, against competitors at 3.4% to
+4.0% and 21.1% to 28.6%.
+
+**HearWrite cannot claim a place on either chart, and this section is about why
+and what it would take.**
+
+The AA-WER Streaming Index is Artificial Analysis's own benchmark and its corpus
+composition is not something we can reproduce. Running our own audio and calling
+the result comparable would be a category error: WER moves by more between
+corpora than it does between good systems. The DER figures come from AMI and
+VoxConverse, which ARE public, and we have simply not run them yet.
+
+So what follows is what we measure, reproducibly, with the command that produces
+it. It is not a claim of parity.
+
+### Word error rate, measured here
+
+LibriSpeech dev-clean, streaming, 160ms lookahead, CPU:
+
+| Model | WER | Substitutions | Deletions | Insertions |
+|---|---|---|---|---|
+| `zipformer-en` | **4.40%** | 37 | 4 | 1 |
+| `nemotron-3.5-160ms` | 6.81% | 53 | 10 | 2 |
+
+```sh
+hearwrite wer ~/.cache/hearwrite/corpora/LibriSpeech/dev-clean --model zipformer-en
+```
+
+**Read that table with the bias in mind.** zipformer was trained on LibriSpeech.
+Its wins are concentrated in exactly the place you would expect: the proper nouns
+of the books the corpus is read from. Nemotron heard "KALIKO" as "Callagh" and
+"Calico"; zipformer knows the name because it has read the book. Benchmarking a
+model on its own training distribution flatters it, and LibriSpeech flatters this
+one.
+
+Which is the argument for measuring on something neither model has seen. Until
+that exists here, the honest reading of the table is "both are in the 4 to 7%
+range on easy read speech", not "zipformer is better".
+
+Note also that WER counts substitutions, deletions and insertions separately in
+the output, because they mean different things: deletions are audio the model
+missed, insertions are words it invented, and a single percentage hides which.
+
+### What comparison would actually take
+
+1. **AMI-IHM, AMI-SDM and VoxConverse for DER.** Public, and the exact sets the
+   published DER figures use. IHM is per speaker headsets and SDM is a single
+   distant microphone, which happen to be precisely the two conditions this
+   project performs very differently on. Running them would produce the first
+   numbers here that mean something next to the chart.
+2. **An out of domain WER set** so no model is being scored on its own training
+   data.
+3. **Honesty about the streaming penalty.** These are 160ms lookahead models. An
+   offline model sees the whole utterance and will beat them, and comparing
+   across that line without saying so is the most common way these charts
+   mislead.
+
 ## Streaming ASR
 
 Apple silicon, CPU only, `zipformer-en`, 20ms chunks:

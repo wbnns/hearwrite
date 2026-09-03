@@ -107,6 +107,21 @@ def test_serve_defaults_to_the_policy_that_labels_speakers():
     assert build_parser().parse_args(["serve"]).policy == "conversation"
 
 
+def test_the_current_word_is_marked_so_a_reader_can_follow_it():
+    """A caption that does not say where you are is a wall of text."""
+    html = app.UI.read_text()
+    assert 'className = "live"' in html or '"live"' in html
+    assert ".live {" in html
+
+
+def test_the_waveform_is_drawn_from_the_audio_that_is_transcribed():
+    """Not from a second analyser node. What you see should be what the
+    recogniser is hearing, including the silences."""
+    html = app.UI.read_text()
+    assert "pushLevel(pcm)" in html
+    assert "ws.send(pcm.buffer)" in html
+
+
 def test_the_page_groups_words_by_the_turn_the_server_assigns():
     """Tracking a "current turn" on the client looks equivalent and is not: an
     event can arrive for a turn other than the newest, and a turn identified
@@ -121,4 +136,4 @@ def test_the_page_treats_an_endpoint_as_a_break_not_a_new_block():
     chops one person talking continuously into pieces."""
     html = app.UI.read_text()
     assert 'classList.contains("brk")' in html, "consecutive endpoints not collapsed"
-    assert "el.lastElementChild" in html
+    assert "said.lastElementChild" in html

@@ -3,157 +3,151 @@
 <title>HearWrite</title>
 <style>
   :root {
-    --bg: #fbfbfa; --fg: #1a1a19; --dim: #8a8a85; --line: #e4e4e0;
-    --a: #2f6f4e; --b: #2b5c8a; --c: #8a4b2b; --d: #6b3f8a; --null: #a0a09a;
+    --bg:#0b0b0d; --card:#141417; --edge:#26262b; --fg:#f2f2f0; --dim:#77777f;
+    --accent:#3d7dff; --hl:#c9dcff; --hlbg:#1e3a6d;
+    --a:#3d7dff; --b:#3fb27f; --c:#e0913f; --d:#b478e0;
   }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#16161a; --fg:#e8e8e4; --dim:#77776f; --line:#2a2a30;
-            --a:#7fc9a1; --b:#84b6e3; --c:#e0a077; --d:#bb9ae0; --null:#5a5a55; }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f7f7f5; --card:#fff; --edge:#e2e2dd; --fg:#16161a; --dim:#82827c;
+            --hl:#16161a; --hlbg:#cfe0ff; }
   }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.65
-         ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif; }
-  header { display:flex; align-items:center; gap:14px; padding:14px 20px;
-           border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); }
-  h1 { font-size:15px; font-weight:620; margin:0; letter-spacing:-0.01em; }
-  #mic { font:inherit; font-weight:560; padding:7px 16px; border-radius:7px;
-         border:1px solid var(--line); background:var(--fg); color:var(--bg); cursor:pointer; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; background:var(--bg); color:var(--fg);
+         font:16px/1.6 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif;
+         display:flex; flex-direction:column; }
+  header { display:flex; align-items:center; gap:14px; padding:16px 22px; }
+  h1 { font-size:14px; font-weight:640; margin:0; letter-spacing:.01em; }
+  #mic { font:inherit; font-size:14px; font-weight:560; padding:8px 18px;
+         border-radius:999px; border:1px solid var(--edge); background:var(--fg);
+         color:var(--bg); cursor:pointer; }
   #mic[data-on="1"] { background:#c0392b; border-color:#c0392b; color:#fff; }
   #state { color:var(--dim); font-size:13px; }
-  main { max-width:760px; margin:0 auto; padding:26px 20px 90px; }
-  .turn { margin:0 0 20px; padding-left:13px; border-left:3px solid var(--null); }
-  .turn[data-s="A"]{border-color:var(--a)} .turn[data-s="B"]{border-color:var(--b)}
-  .turn[data-s="C"]{border-color:var(--c)} .turn[data-s="D"]{border-color:var(--d)}
-  .who { font-size:11px; font-weight:660; letter-spacing:.09em; text-transform:uppercase;
-         color:var(--dim); margin-bottom:3px; }
-  .turn[data-s="A"] .who{color:var(--a)} .turn[data-s="B"] .who{color:var(--b)}
-  .turn[data-s="C"] .who{color:var(--c)} .turn[data-s="D"] .who{color:var(--d)}
-  .text { font-size:18px; line-height:1.6; }
-  .partial { color:var(--dim); font-style:italic; }
-  .unlabelled { border-bottom:1px dotted var(--null); }
-  /* A sentence end reads as a break in the text, not as a symbol inside it.
-     An inline glyph every few seconds turns a transcript into punctuation. */
-  .brk { display:block; height:0; margin:0 0 9px; }
-  /* A polish replaces bare words with punctuated ones. The flash is there so it
-     is visible that the text was re-rendered rather than corrected. */
-  @keyframes settle { from { background:var(--line); } to { background:transparent; } }
-  .polished { animation: settle 900ms ease-out; border-radius:3px; }
-  footer { position:fixed; bottom:0; left:0; right:0; display:flex; gap:22px;
-           padding:9px 20px; border-top:1px solid var(--line); background:var(--bg);
-           font:12px ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--dim); }
-  footer b { color:var(--fg); font-weight:600; }
-  #hint { max-width:760px; margin:0 auto; padding:0 20px; color:var(--dim); font-size:14px; }
-  code { font:12px ui-monospace,Menlo,monospace; background:var(--line);
-         padding:1px 5px; border-radius:4px; }
+  #err { color:#e2725b; font-size:13px; }
+
+  main { flex:1; display:flex; align-items:center; justify-content:center; padding:0 22px 26px; }
+  .card { width:min(1000px,100%); background:var(--card); border:1px solid var(--edge);
+          border-radius:20px; padding:34px 38px 26px; display:flex; flex-direction:column;
+          min-height:min(60vh,460px); }
+
+  .stage { flex:1; display:flex; align-items:center; gap:26px; }
+  .who { flex:0 0 96px; text-align:right; color:var(--dim); font-size:14px; padding-top:6px; }
+  .who[data-s="A"]{color:var(--a)} .who[data-s="B"]{color:var(--b)}
+  .who[data-s="C"]{color:var(--c)} .who[data-s="D"]{color:var(--d)}
+  .said { flex:1; font-size:clamp(20px,2.4vw,30px); line-height:1.5; letter-spacing:-0.01em;
+          max-height:46vh; overflow-y:auto; }
+  .said::-webkit-scrollbar { width:0; }
+  .partial { color:var(--dim); }
+  .unlabelled { border-bottom:1px dotted var(--dim); }
+  /* The most recent word, the way a caption highlights what is being said. */
+  .live { background:var(--hlbg); color:var(--hl); border-radius:4px; padding:1px 3px; }
+  .brk { display:block; height:0; margin-bottom:10px; }
+  .polished { animation:settle 700ms ease-out; }
+  @keyframes settle { from { background:var(--hlbg); } to { background:transparent; } }
+  .idle { color:var(--dim); font-size:17px; }
+
+  .wave { display:flex; align-items:center; gap:16px; margin-top:22px;
+          padding-top:18px; border-top:1px solid var(--edge); }
+  #bars { flex:1; height:46px; display:block; }
+  .stat { display:flex; gap:20px; color:var(--dim);
+          font:12px ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .stat b { color:var(--fg); font-weight:600; }
 </style>
 
 <header>
   <h1>HearWrite</h1>
   <button id="mic" data-on="0">Start listening</button>
   <span id="state">not connected</span>
+  <span id="err"></span>
 </header>
 
 <main>
-  <div id="hint">
-    Click <b>Start listening</b> and allow microphone access. Words appear as they
-    are recognised. Grey italic text is a <code>partial</code> and may change;
-    solid text is <code>commit</code>ted and never will. A dotted underline means
-    the speaker is not yet identified — it fills in once there is enough audio.
-    A line break is where the endpoint decided you finished a sentence; it is a
-    break <em>within</em> a speaker's turn, not a new one.
-    When a sentence finishes it may flash as a second model puts the punctuation
-    back — the words never change, only how they are written.
+  <div class="card">
+    <div class="stage">
+      <div class="who" id="who"></div>
+      <div class="said" id="said"><span class="idle">Press start and speak. Words appear as
+        they are recognised, the speaker label fills in once there is enough voice to
+        identify, and a line break marks where a sentence ended.</span></div>
+    </div>
+    <div class="wave">
+      <canvas id="bars"></canvas>
+      <div class="stat">
+        <span>delay p50 <b id="p50">—</b></span>
+        <span>p90 <b id="p90">—</b></span>
+        <span>words <b id="words">0</b></span>
+        <span>speakers <b id="spk">0</b></span>
+      </div>
+    </div>
   </div>
-  <div id="log"></div>
 </main>
-
-<footer>
-  <span>delay p50 <b id="p50">—</b></span>
-  <span>p90 <b id="p90">—</b></span>
-  <span>words <b id="words">0</b></span>
-  <span>speakers <b id="spk">0</b></span>
-  <span>turns <b id="turns">0</b></span>
-  <span id="err" style="color:#c0392b"></span>
-</footer>
 
 <script>
 const $ = (id) => document.getElementById(id);
-const log = $("log"), state = $("state");
-let ws, ctx, node, stream, running = false;
-const delays = [], turns = new Map(), speakers = new Set();
+const said = $("said"), whoEl = $("who");
+let ws, ctx, node, stream, running = false, started = false;
+const delays = [], speakers = new Set();
+let lastTurn = 1, turnSpeaker = null;
 
-function setState(t) { state.textContent = t; }
+function setState(t) { $("state").textContent = t; }
 
-function turnEl(n) {
-  let el = turns.get(n);
-  if (!el) {
-    el = document.createElement("div");
-    el.className = "turn";
-    el.innerHTML = '<div class="who">speaker —</div><div class="text"></div>';
-    log.appendChild(el);
-    turns.set(n, el);
-    $("turns").textContent = turns.size;
-  }
-  return el;
+function beginTranscript() {
+  if (started) return;
+  started = true;
+  said.innerHTML = "";
 }
 
-function setSpeaker(n, who) {
-  const el = turnEl(n);
-  el.dataset.s = who || "";
-  el.querySelector(".who").textContent = who ? "speaker " + who : "speaker —";
+function setSpeaker(who) {
+  turnSpeaker = who;
+  whoEl.textContent = who ? "Speaker " + who : "";
+  whoEl.dataset.s = who || "";
 }
 
-// Partials must be cleared across EVERY turn, not just the current one. A
-// partial rendered just before a turn_start is stranded in the turn that closed,
-// so the word shows up twice: once as leftover grey text at the end of one turn
-// and again as a real commit at the start of the next.
-function clearPartials() {
-  log.querySelectorAll(".partial").forEach(n => n.remove());
-}
+function clearPartials() { said.querySelectorAll(".partial").forEach(n => n.remove()); }
+function clearLive() { said.querySelectorAll(".live").forEach(n => n.classList.remove("live")); }
 
-// Words are grouped by the turn the SERVER says they belong to, taken off each
-// commit. Tracking a "current turn" on the client looks equivalent and is not:
-// an event can arrive for a turn other than the newest one, and the header for a
-// turn identified after the fact has to update in place.
-let lastTurn = 1;
+function scrollDown() { said.scrollTop = said.scrollHeight; }
 
 function render(ev) {
   const p = ev.payload || {};
 
   if (ev.kind === "turn_start") {
+    beginTranscript();
     lastTurn = p.turn;
-    turnEl(p.turn);
-    setSpeaker(p.turn, p.speaker);
+    setSpeaker(p.speaker);
     clearPartials();
     return;
   }
 
   if (ev.kind === "commit") {
+    beginTranscript();
     clearPartials();
+    clearLive();
     lastTurn = p.turn || lastTurn;
-    const el = turnEl(lastTurn).querySelector(".text");
     const w = document.createElement("span");
     w.textContent = p.text + " ";
     w.dataset.seq = ev.seq;
-    if (!p.speaker) w.className = "unlabelled";
-    el.appendChild(w);
+    w.className = "live" + (p.speaker ? "" : " unlabelled");
+    said.appendChild(w);
     delays.push(p.delay);
     $("words").textContent = delays.length;
     const s = [...delays].sort((a, b) => a - b);
     $("p50").textContent = s[Math.floor(s.length * 0.5)].toFixed(2) + "s";
     $("p90").textContent = s[Math.floor(s.length * 0.9)].toFixed(2) + "s";
-    if (p.speaker) { speakers.add(p.speaker); $("spk").textContent = speakers.size; }
+    if (p.speaker) {
+      speakers.add(p.speaker);
+      $("spk").textContent = speakers.size;
+      if (!turnSpeaker) setSpeaker(p.speaker);
+    }
     scrollDown();
     return;
   }
 
   if (ev.kind === "partial") {
+    beginTranscript();
     clearPartials();
-    const el = turnEl(lastTurn).querySelector(".text");
     const w = document.createElement("span");
     w.className = "partial";
     w.textContent = p.text + " ";
-    el.appendChild(w);
+    said.appendChild(w);
     scrollDown();
     return;
   }
@@ -162,43 +156,31 @@ function render(ev) {
     speakers.add(p.speaker);
     $("spk").textContent = speakers.size;
     if (p.seq === undefined) {
-      // A whole turn just became identifiable. Same person, now named.
-      setSpeaker(p.turn, p.speaker);
+      if (p.turn === lastTurn) setSpeaker(p.speaker);
     } else {
-      const w = log.querySelector('[data-seq="' + p.seq + '"]');
+      const w = said.querySelector('[data-seq="' + p.seq + '"]');
       if (w) w.classList.remove("unlabelled");
-      const el = turns.get(p.turn);
-      if (el && !el.dataset.s) setSpeaker(p.turn, p.speaker);
+      if (!turnSpeaker) setSpeaker(p.speaker);
     }
     return;
   }
 
   if (ev.kind === "endpoint") {
-    // An endpoint ends an UTTERANCE, not a turn. It is a sentence break inside
-    // the speaker's block, not a reason to start a new one.
     clearPartials();
-    const el = turnEl(lastTurn).querySelector(".text");
-    // A break is only meaningful between sentences. An endpoint before any
-    // words, or a second one with nothing said in between, marks nothing and
-    // just litters the transcript.
-    const last = el.lastElementChild;
+    const last = said.lastElementChild;
     if (last && !last.classList.contains("brk")) {
       const mark = document.createElement("span");
       mark.className = "brk";
-      el.appendChild(mark);
+      said.appendChild(mark);
       scrollDown();
     }
     return;
   }
 
   if (ev.kind === "polished") {
-    // The same words, re-rendered. Replace the span range in place so the
-    // transcript reads properly, and keep the dotted underline if any word in
-    // the range is still waiting for a speaker.
-    const first = log.querySelector('[data-seq="' + p.from_seq + '"]');
+    const first = said.querySelector('[data-seq="' + p.from_seq + '"]');
     if (!first) return;
-    let unlabelled = false;
-    let node = first;
+    let unlabelled = false, node = first;
     const doomed = [];
     while (node) {
       const seq = Number(node.dataset.seq);
@@ -210,8 +192,6 @@ function render(ev) {
     doomed.forEach(n => n.remove());
     first.textContent = p.text + " ";
     first.className = "polished" + (unlabelled ? " unlabelled" : "");
-    first.dataset.seq = p.from_seq;
-    first.dataset.toSeq = p.to_seq;
     return;
   }
 
@@ -220,10 +200,47 @@ function render(ev) {
   }
 }
 
-function scrollDown() {
-  window.scrollTo(0, document.body.scrollHeight);
+// -- the waveform ----------------------------------------------------------
+// A rolling picture of what the microphone is hearing, so silence looks like
+// silence. It is drawn from the same samples that go to the recogniser rather
+// than a second analyser, so what you see is what it is transcribing.
+const LEVELS = [];
+const MAX_BARS = 220;
+function pushLevel(pcm) {
+  let peak = 0;
+  for (let i = 0; i < pcm.length; i += 8) {
+    const v = Math.abs(pcm[i]);
+    if (v > peak) peak = v;
+  }
+  LEVELS.push(peak / 32768);
+  while (LEVELS.length > MAX_BARS) LEVELS.shift();
 }
 
+function drawWave() {
+  const c = $("bars"), dpr = devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight;
+  if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
+  const g = c.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const style = getComputedStyle(document.documentElement);
+  const accent = style.getPropertyValue("--accent").trim();
+  const dim = style.getPropertyValue("--dim").trim();
+  const gap = 3, bw = 2;
+  const n = Math.min(LEVELS.length, Math.floor(w / (bw + gap)));
+  for (let i = 0; i < n; i++) {
+    const level = LEVELS[LEVELS.length - n + i];
+    const bh = Math.max(2, Math.min(h, level * h * 2.6));
+    // The newest few bars are the accent colour: that is "now".
+    g.fillStyle = i > n - 6 ? accent : dim;
+    g.globalAlpha = i > n - 6 ? 1 : 0.55;
+    g.fillRect(i * (bw + gap), (h - bh) / 2, bw, bh);
+  }
+  requestAnimationFrame(drawWave);
+}
+requestAnimationFrame(drawWave);
+
+// -- capture ---------------------------------------------------------------
 async function start() {
   $("err").textContent = "";
   setState("asking for the microphone…");
@@ -241,7 +258,10 @@ async function start() {
   const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host;
   ws = new WebSocket(url);
   ws.binaryType = "arraybuffer";
-  await new Promise((ok, no) => { ws.onopen = ok; ws.onerror = () => no(new Error("cannot reach " + url)); });
+  await new Promise((ok, no) => {
+    ws.onopen = ok;
+    ws.onerror = () => no(new Error("cannot reach " + url));
+  });
   setState("listening");
 
   ws.onmessage = (m) => {
@@ -272,9 +292,12 @@ async function start() {
   );
 
   node = new AudioWorkletNode(ctx, "tap");
-  node.port.onmessage = (e) => { if (ws.readyState === 1) ws.send(e.data); };
+  node.port.onmessage = (e) => {
+    const pcm = new Int16Array(e.data);
+    pushLevel(pcm);
+    if (ws.readyState === 1) ws.send(pcm.buffer);
+  };
   ctx.createMediaStreamSource(stream).connect(node);
-  // Keep the graph alive without routing the microphone to the speakers.
   node.connect(ctx.createGain()).connect(ctx.destination);
 }
 
@@ -282,16 +305,14 @@ function stop() {
   running = false;
   $("mic").dataset.on = "0";
   $("mic").textContent = "Start listening";
-  try { if (ws && ws.readyState === 1) { ws.send("finish"); } } catch (e) {}
+  clearLive();
+  try { if (ws && ws.readyState === 1) ws.send("finish"); } catch (e) {}
   try { node && node.disconnect(); } catch (e) {}
   try { ctx && ctx.close(); } catch (e) {}
   try { stream && stream.getTracks().forEach(t => t.stop()); } catch (e) {}
   setState("stopped");
 }
 
-// ?autostart=1 begins listening without a click. Useful for a kiosk, and it is
-// how the browser audio path gets tested: headless Chrome can inject a WAV file
-// as the microphone, but it cannot press a button.
 if (new URLSearchParams(location.search).has("autostart")) {
   addEventListener("load", () => $("mic").click());
 }

@@ -112,6 +112,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="delete downloaded model files no loader will ever open",
     )
 
+    werp = sub.add_parser("wer", help="word error rate over a corpus of audio and transcripts")
+    werp.add_argument("path", help="LibriSpeech style directory of .flac and .trans.txt")
+    werp.add_argument("--model", default=None)
+    werp.add_argument("--engine", default="sherpa", choices=("sherpa", "whisper"))
+    werp.add_argument("--language", default=None)
+    werp.add_argument("--threads", type=int, default=2)
+    werp.add_argument("--provider", default="cpu")
+    werp.add_argument("--limit", type=int, default=200, help="files to score")
+
     endpoints = sub.add_parser("endpoints", help="score endpointing against a mid thought corpus")
     endpoints.add_argument("path", help="directory containing index.json")
     endpoints.add_argument("--turn-model", default="smart-turn")
@@ -210,6 +219,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _bench(args)
     if args.command == "endpoints":
         return _endpoints(args)
+    if args.command == "wer":
+        return _wer(args)
     if args.command == "serve":
         return _serve(args)
     return 2
@@ -289,6 +300,95 @@ def _models(*, prune: bool = False) -> int:
         print(f"\nfreed {freed / 1e6:.0f}MB. Re-download with `hearwrite models`.")
     else:
         print("nothing to prune.")
+    return 0
+
+
+def _wer(args) -> int:
+    """Score a recogniser against reference transcripts.
+
+    Deliberately reports substitutions, deletions and insertions separately.
+    They mean different things: deletions are audio the model missed,
+    insertions are words it invented, and a single WER figure hides which.
+    """
+    import io
+    import shutil
+    import subprocess
+    import wave
+    from pathlib import Path
+
+    from .pipeline import DEFAULT_SHERPA_MODEL, build_engine
+    from .wer import aggregate
+
+    root = Path(args.path)
+    if not root.exists():
+        print(f"hearwrite wer: no such directory: {root}", file=sys.stderr)
+        return 2
+    if not shutil.which("ffmpeg"):
+        print("hearwrite wer: ffmpeg is needed to decode the corpus", file=sys.stderr)
+        return 1
+
+    references: dict[str, str] = {}
+    for transcript in root.glob("**/*.trans.txt"):
+        for line in transcript.read_text().splitlines():
+            key, _, text = line.partition(" ")
+            references[key] = text
+    audio_files = sorted(root.glob("**/*.flac"))[: args.limit]
+    if not audio_files:
+        print(f"hearwrite wer: no .flac files under {root}", file=sys.stderr)
+        return 2
+
+    engine = build_engine(_backends(args))
+    pairs, seconds = [], 0.0
+    started = time.perf_counter()
+    for path in audio_files:
+        raw = subprocess.run(
+            [
+                "ffmpeg",
+                "-v",
+                "quiet",
+                "-i",
+                str(path),
+                "-ar",
+                "16000",
+                "-ac",
+                "1",
+                "-c:a",
+                "pcm_s16le",
+                "-f",
+                "wav",
+                "-",
+            ],
+            capture_output=True,
+        ).stdout
+        with wave.open(io.BytesIO(raw)) as handle:
+            pcm = handle.readframes(handle.getnframes())
+        seconds += len(pcm) / 2 / 16_000
+        engine.reset()
+        at = 0.0
+        for i in range(0, len(pcm), 640):
+            chunk = pcm[i : i + 640]
+            at += len(chunk) / 2 / 16_000
+            engine.push(chunk, at)
+        hypothesis = " ".join(w.text for w in engine.flush().stable)
+        if path.stem in references:
+            pairs.append((references[path.stem], hypothesis))
+
+    if not pairs:
+        print("hearwrite wer: no reference transcripts matched the audio", file=sys.stderr)
+        return 2
+
+    result = aggregate(pairs)
+    elapsed = time.perf_counter() - started
+    print(f"corpus:      {root}")
+    print(f"model:       {args.model or DEFAULT_SHERPA_MODEL}")
+    print(f"files:       {len(pairs)}  ({seconds / 60:.1f} minutes of audio)")
+    print(f"WER:         {result.rate:.2%}")
+    print(
+        f"  breakdown: {result.substitutions} substitutions, "
+        f"{result.deletions} deletions, {result.insertions} insertions "
+        f"of {result.reference_words} reference words"
+    )
+    print(f"rtf:         {elapsed / seconds:.3f}")
     return 0
 
 

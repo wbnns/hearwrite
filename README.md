@@ -80,6 +80,7 @@ estimate.
 | Real time factor | **0.26** default recogniser, **0.045** with the light one |
 | Memory | ~340MB shared across sessions, ~3MB per session |
 | Install | one package, zero dependencies, before any extra |
+| WER, LibriSpeech dev-clean | **4.4%** streaming, 160ms lookahead |
 
 Diarization is reported separately and with its failure case attached, because a
 number in a table gets read and a caveat under it does not:
@@ -334,7 +335,14 @@ breaks the one package and zero dependencies property this is built around. It
 may not beat clustering on a shared mic either. Worth trying, behind an extra,
 and worth abandoning if it does not measurably help.
 
-**3. A real diarization corpus.** Every diarization number here comes from
+**3. AMI and VoxConverse, for numbers that compare.** Muse publishes 17.5% DER on
+AMI-IHM, AMI-SDM and VoxConverse; the field sits at 21% to 29%. Those sets are
+public and we have not run them. They also happen to separate the two conditions
+this project performs very differently on: IHM is per speaker headsets, SDM is
+one distant microphone. Running them would produce the first diarization numbers
+here that mean anything next to a published chart.
+
+**4. A real diarization corpus.** Every diarization number here comes from
 concatenated LibriSpeech, which is one speaker per recording with a clean pause
 at every boundary. AMI or VoxConverse would say what the numbers actually are on
 meeting audio. I expect them to be much worse, and knowing by how much is worth

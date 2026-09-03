@@ -69,6 +69,7 @@ def test_unknown_policy_is_rejected():
         ["transcribe", "x.wav", "--policy", "conversation", "--speaker-model", "m"],
         ["bench", "x.wav", "--engine", "sherpa"],
         ["endpoints", "somewhere", "--turn-model", "smart-turn"],
+        ["wer", "corpus", "--limit", "10"],
         ["serve", "--port", "9999", "--max-sessions", "2", "--policy", "agent"],
         ["demo", "--chunk", "0.5", "--json"],
     ],
@@ -96,6 +97,7 @@ READS = {
     ],
     "bench": ["path", "policy", "engine", "model", "speaker_model", "language", "threads"],
     "endpoints": ["path", "turn_model"],
+    "wer": ["path", "model", "engine", "language", "threads", "provider", "limit"],
     "serve": [
         "host",
         "port",
@@ -114,7 +116,7 @@ READS = {
 @pytest.mark.parametrize("command,attributes", READS.items())
 def test_every_attribute_the_code_reads_is_registered(command, attributes):
     """The regression guard for the `--no-turn` bug."""
-    argv = [command] + (["x"] if command in {"transcribe", "bench", "endpoints"} else [])
+    argv = [command] + (["x"] if command in {"transcribe", "bench", "endpoints", "wer"} else [])
     args = build_parser().parse_args(argv)
     missing = [a for a in attributes if not hasattr(args, a)]
     assert not missing, f"`hearwrite {command}` reads unregistered args: {missing}"
