@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>HearWrite: streaming ASR, diarization and endpointing on CPU</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="description" content="Real time speech to text with speaker labels and semantic endpointing, assembled from open weight models. Runs on a laptop CPU with no GPU and no API key.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="HearWrite">
@@ -16,6 +17,7 @@
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="HearWrite. Streaming ASR, diarization and endpointing on CPU. A transcript line labelled Speaker A, with measured figures: 0.28s median emission delay, 4.4% word error rate, 0.05x real time factor, 340MB memory.">
 <meta name="twitter:card" content="summary_large_image">
+<link rel="apple-touch-icon" href="https://hearwrite.wbnns.com/apple-touch-icon.png">
 <link rel="canonical" href="https://hearwrite.wbnns.com/">
 <style>
   :root {
@@ -97,9 +99,32 @@
   section > p { color:var(--dim); max-width:68ch; margin:0 0 26px; }
 
   .demo { margin:0 0 34px; }
+  .player { position:relative; }
   .demo video { width:100%; height:auto; display:block; background:var(--bg); }
   .demo figcaption { margin-top:14px; color:var(--text-secondary); font-size:13px;
                      line-height:1.65; max-width:72ch; }
+  /* Hidden until the script claims it, so a page with no JavaScript shows the
+     browser's own controls rather than a button that does nothing. */
+  .play { display:none; }
+  .player[data-ready] .play {
+    display:grid; place-items:center; position:absolute;
+    /* Sits in the empty band below the transcript rather than centred on the
+       frame, because the transcript is the thing worth seeing on the poster. */
+    left:50%; top:63%; transform:translate(-50%,-50%);
+    width:74px; height:74px; padding:0; border:1px solid rgba(242,242,240,0.22);
+    border-radius:999px; background:rgba(11,11,13,0.66); color:#f2f2f0;
+    cursor:pointer; transition:transform 140ms ease, background 140ms ease;
+  }
+  .player[data-ready] .play svg { width:32px; height:32px; fill:currentColor;
+                                  margin-left:3px; }
+  .player[data-ready] .play:hover { transform:translate(-50%,-50%) scale(1.07);
+                                    background:rgba(11,11,13,0.82); }
+  .play:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+  .player[data-playing] .play { opacity:0; pointer-events:none; }
+  @media (prefers-reduced-motion:reduce) {
+    .player[data-ready] .play { transition:none; }
+    .player[data-ready] .play:hover { transform:translate(-50%,-50%); }
+  }
   .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; }
   .tile { background:var(--card); border:1px solid var(--edge); border-radius:14px; padding:18px 20px; }
   .tile .n { font-size:32px; font-weight:660; letter-spacing:-0.03em; line-height:1.1; }
@@ -155,12 +180,18 @@
   </div>
 
   <figure class="demo">
-    <video controls playsinline preload="metadata" poster="demo.jpg"
-           width="1846" height="796" aria-describedby="democap">
-      <source src="demo.mp4" type="video/mp4">
-      <p>Your browser cannot play the recording.
-        <a href="demo.mp4">Download it instead.</a></p>
-    </video>
+    <div class="player" id="player">
+      <video id="clip" controls playsinline preload="metadata" poster="demo.jpg"
+             width="1846" height="796" aria-describedby="democap">
+        <source src="demo.mp4" type="video/mp4">
+        <p>Your browser cannot play the recording.
+          <a href="demo.mp4">Download it instead.</a></p>
+      </video>
+      <button class="play" id="play" type="button" aria-controls="clip"
+              aria-label="Play the recording. 8 seconds, with sound.">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+    </div>
     <figcaption id="democap"><b>A recording, not a live service.</b> Nine words
       through the default pipeline on an Apple M4, CPU only, with diarization and
       the semantic gate on. Dim words are provisional and can still change; solid
@@ -261,3 +292,19 @@ hearwrite serve --open</pre>
     <a href="https://github.com/wbnns/hearwrite">github.com/wbnns/hearwrite</a>
   </footer>
 </div>
+<script>
+(() => {
+  const box = document.getElementById("player");
+  const clip = document.getElementById("clip");
+  const play = document.getElementById("play");
+  if (!box || !clip || !play) return;
+  box.dataset.ready = "1";
+  play.addEventListener("click", () => clip.play());
+  const sync = () => {
+    if (clip.paused) delete box.dataset.playing;
+    else box.dataset.playing = "1";
+  };
+  ["play", "pause", "ended"].forEach(e => clip.addEventListener(e, sync));
+  sync();
+})();
+</script>

@@ -62,7 +62,7 @@ Source = "https://github.com/wbnns/hearwrite"
 [tool.hatch.build.targets.wheel]
 packages = ["src/hearwrite"]
 # The browser UI ships inside the package so `hearwrite serve` needs nothing else.
-artifacts = ["src/hearwrite/server/ui.html"]
+artifacts = ["src/hearwrite/server/ui.html", "src/hearwrite/server/favicon.svg"]
 
 [tool.ruff]
 line-length = 100

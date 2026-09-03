@@ -30,6 +30,7 @@ from ..protocol import encode, hello_frame
 from .session import Admission, Rejected, Session
 
 UI = Path(__file__).parent / "ui.html"
+FAVICON = Path(__file__).parent / "favicon.svg"
 
 
 def _serve_ui(connection, request):
@@ -49,11 +50,30 @@ def _serve_ui(connection, request):
     # request.path carries the query string, so "/?autostart=1" is not "/".
     # Comparing them directly 404s every URL with a parameter.
     path = request.path.split("?", 1)[0]
-    if path not in ("/", "/index.html"):
-        return connection.respond(404, "not found\n")
 
     from websockets.datastructures import Headers
     from websockets.http11 import Response
+
+    # The one other file a browser asks for unprompted. Serving it here keeps a
+    # single copy of the icon, which the published page copies rather than
+    # duplicating the markup.
+    if path == "/favicon.svg":
+        body = FAVICON.read_bytes()
+        return Response(
+            200,
+            "OK",
+            Headers(
+                {
+                    "Content-Type": "image/svg+xml",
+                    "Content-Length": str(len(body)),
+                    "Cache-Control": "max-age=86400",
+                }
+            ),
+            body,
+        )
+
+    if path not in ("/", "/index.html"):
+        return connection.respond(404, "not found\n")
 
     body = UI.read_bytes()
     # Built directly rather than via connection.respond(), which sets the body

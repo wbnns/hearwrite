@@ -1,9 +1,13 @@
-"""Render scripts/og.html to docs/og.png, the link preview image.
+"""Render the page's raster images with a headless browser.
 
-The preview is a screenshot of a real page rather than a hand drawn asset, so it
-inherits the site's palette and font stack and the numbers on it stay the same
-numbers the page publishes. Rendering at 2x and downsampling gives clean text at
-the 1200x630 that the OpenGraph consumers actually want.
+Two targets: docs/og.png, the link preview, and docs/apple-touch-icon.png. Both
+are screenshots of real pages rather than hand drawn assets, so the preview
+inherits the site's palette and font stack and the figures on it stay the same
+figures the page publishes. Rendering at 2x and downsampling gives clean text at
+the sizes the consumers actually want.
+
+The favicon is docs/favicon.svg and is not built here. It is vector, so there is
+nothing to rasterise; only Apple needs a PNG.
 
 Needs Chrome and the `websockets` package, both of which are already required to
 verify the UI, and neither of which the package depends on at runtime. This is
@@ -27,14 +31,18 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE = ROOT / "scripts" / "og.html"
-OUT = ROOT / "docs" / "og.png"
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-WIDTH, HEIGHT, SCALE = 1200, 630, 2
+SCALE = 2
 PORT = 9336
 
+#: (source page, output file, width, height). Rendered in order.
+TARGETS = (
+    (ROOT / "scripts" / "og.html", ROOT / "docs" / "og.png", 1200, 630),
+    (ROOT / "scripts" / "icon.html", ROOT / "docs" / "apple-touch-icon.png", 180, 180),
+)
 
-async def shoot(ws_url: str, page_url: str) -> bytes:
+
+async def shoot(ws_url: str, page_url: str, width: int, height: int) -> bytes:
     import websockets
 
     async with websockets.connect(ws_url, max_size=None) as ws:
@@ -57,27 +65,36 @@ async def shoot(ws_url: str, page_url: str) -> bytes:
         # a window that does not match would letterbox or crop the layout.
         await cmd(
             "Emulation.setDeviceMetricsOverride",
-            {"width": WIDTH, "height": HEIGHT, "deviceScaleFactor": SCALE, "mobile": False},
+            {"width": width, "height": height, "deviceScaleFactor": SCALE, "mobile": False},
         )
         await cmd("Page.navigate", {"url": page_url})
         await asyncio.sleep(2.5)
         shot = await cmd(
             "Page.captureScreenshot",
-            {"format": "png", "clip": {"x": 0, "y": 0, "width": WIDTH, "height": HEIGHT, "scale": SCALE}},
+            {
+                "format": "png",
+                "clip": {"x": 0, "y": 0, "width": width, "height": height, "scale": SCALE},
+            },
         )
         return base64.b64decode(shot["data"])
 
 
 def main() -> int:
-    if not SOURCE.exists():
-        raise SystemExit(f"missing {SOURCE}")
+    for source, _, _, _ in TARGETS:
+        if not source.exists():
+            raise SystemExit(f"missing {source}")
     proc = subprocess.Popen(
         [
-            CHROME, "--headless=new", f"--remote-debugging-port={PORT}",
-            "--user-data-dir=/tmp/hearwrite-og", "--no-first-run",
-            "--hide-scrollbars", "about:blank",
+            CHROME,
+            "--headless=new",
+            f"--remote-debugging-port={PORT}",
+            "--user-data-dir=/tmp/hearwrite-og",
+            "--no-first-run",
+            "--hide-scrollbars",
+            "about:blank",
         ],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     try:
         tabs = None
@@ -90,18 +107,22 @@ def main() -> int:
         if not tabs:
             raise SystemExit("chrome did not start")
         page = next(t for t in tabs if t["type"] == "page")
-        png = asyncio.run(shoot(page["webSocketDebuggerUrl"], SOURCE.as_uri()))
+        ws_url = page["webSocketDebuggerUrl"]
+        for source, out, width, height in TARGETS:
+            png = asyncio.run(shoot(ws_url, source.as_uri(), width, height))
+            out.parent.mkdir(exist_ok=True)
+            out.write_bytes(png)
+            # Downsample the 2x render to the size consumers expect.
+            subprocess.run(
+                ["sips", "-z", str(height), str(width), str(out)],
+                check=True,
+                capture_output=True,
+            )
+            print(
+                f"wrote {out.relative_to(ROOT)} ({out.stat().st_size:,} bytes) at {width}x{height}"
+            )
     finally:
         proc.terminate()
-
-    OUT.parent.mkdir(exist_ok=True)
-    OUT.write_bytes(png)
-    # Downsample the 2x render to the size consumers expect.
-    subprocess.run(
-        ["sips", "-z", str(HEIGHT), str(WIDTH), str(OUT)],
-        check=True, capture_output=True,
-    )
-    print(f"wrote {OUT.relative_to(ROOT)} ({OUT.stat().st_size:,} bytes) at {WIDTH}x{HEIGHT}")
     return 0
 
 

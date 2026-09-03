@@ -7,6 +7,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **A favicon**, one SVG kept next to the server that serves it, at
+  `/favicon.svg`, and copied into the published page by the site build. The
+  server grew a route for it, which is the only file a browser asks for without
+  being told to. Apple needs a raster, so `scripts/build_og.py` also renders a
+  180px touch icon from that same file rather than restating the artwork.
+- **An overlay play button on the recording.** The browser's own play control
+  sits in a small bar at the bottom, which is easy to miss when the poster frame
+  is a finished transcript. The overlay is hidden until its script claims it, so
+  a page with no JavaScript falls back to the native controls instead of showing
+  a button that does nothing, and it sits in the empty band below the transcript
+  rather than centred, because the transcript is the thing worth seeing.
 - **Link metadata and a preview image.** A descriptive title and meta
   description on both copies of the page, and OpenGraph plus Twitter card tags
   on the published copy only, since they carry absolute URLs that a page served
