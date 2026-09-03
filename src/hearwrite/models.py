@@ -81,7 +81,7 @@ REGISTRY: dict[str, ModelSpec] = {
         licence="Apache-2.0",
         languages="en",
         approx_mb=296,
-        summary="Streaming zipformer transducer, English. The default.",
+        summary="Streaming zipformer transducer, English. A fifth of the CPU.",
         sha256="639e25b578e9e997131402199419c13a941f8e4e198e2da1ce57dbf5cf401282",
         # int8 encoder and joiner keep it fast on CPU; the decoder is small
         # enough that the float build costs nothing and decodes a little better.
@@ -128,7 +128,7 @@ REGISTRY: dict[str, ModelSpec] = {
         licence="OpenMDW-1.1",
         languages="40 locales",
         approx_mb=453,
-        summary="Nemotron 3.5 streaming, 160ms lookahead. Punctuation and casing.",
+        summary="Nemotron 3.5 streaming, 160ms lookahead. Punctuated. The default.",
         punctuates=True,
         sha256="a81909a1780d84cff16d73c15e13e67d9d81d8839faf14870d507d8499f7a61a",
         encoder=("encoder.int8.onnx",),

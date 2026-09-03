@@ -191,7 +191,8 @@
   <div class="hero">
     <h2>Real time open source transcription that runs anywhere</h2>
     <p>Streaming speech to text, speaker labels and endpointing, from open weight
-      models. No GPU, no API key, no gated downloads. A 1GB VPS is enough.</p>
+      models. No GPU, no API key and no gated downloads. A 1GB VPS is enough
+      with the light recogniser; the default one wants 4GB.</p>
     <p class="sub">Everything below is measured on the machine serving this page,
       and every number is reproducible with a command in the repository.</p>
   </div>
@@ -240,13 +241,16 @@
 
   <section>
     <h3>Measured, on a laptop CPU</h3>
-    <p>Apple M4, CPU only, no accelerator. The delay figure is how long after a
-      word is spoken before it is final and will never change.</p>
+    <p>Apple M4, CPU only, no accelerator, all four figures for the default
+      recogniser. The delay figure is how long after a word is spoken before it
+      is final and will never change. The light recogniser trades word error rate
+      for a fifth of the CPU and a quarter of the memory; the charts below put
+      the two side by side.</p>
     <div class="tiles">
-      <div class="tile"><div class="n">0.28s</div><div class="l">median emission delay</div></div>
-      <div class="tile"><div class="n">0.05&times;</div><div class="l">real time factor, light recogniser</div></div>
-      <div class="tile"><div class="n">4.4%</div><div class="l">word error rate, LibriSpeech dev-clean</div></div>
-      <div class="tile"><div class="n">340MB</div><div class="l">memory, shared across every session</div></div>
+      <div class="tile"><div class="n">0.36s</div><div class="l">median emission delay</div></div>
+      <div class="tile"><div class="n">0.25&times;</div><div class="l">real time factor</div></div>
+      <div class="tile"><div class="n">6.8%</div><div class="l">word error rate, LibriSpeech dev-clean</div></div>
+      <div class="tile"><div class="n">2.0GB</div><div class="l">memory, one session or five</div></div>
     </div>
   </section>
 

@@ -1,7 +1,7 @@
 # Working in this repo
 
 HearWrite is tuned for Claude Code, but the structure is clean enough for any
-coding agent. The full guide is in **[CLAUDE.md](./CLAUDE.md)** — read it. The
+coding agent. The full guide is in **[CLAUDE.md](./CLAUDE.md)**. Read it. The
 essentials:
 
 ## What it is
@@ -19,7 +19,7 @@ Not tied to any one model.
 
 Streaming transcription, endpointing, punctuation and number normalisation
 **work**. Diarization works on per speaker recordings and **fails on a shared
-microphone** -- three people through one laptop mic came back as two speakers.
+microphone**. Three people through one laptop mic came back as two speakers.
 That is measured, not suspected: two of the voices sat at 0.54 cross similarity
 against 0.55 within, so no threshold separates them. Do not tune it; the fix is
 per speaker capture. See README.md.
@@ -57,17 +57,19 @@ per speaker capture. See README.md.
 
 ## Where things are
 
-- `src/hearwrite/coordinator/` — all state, all policy. The interesting code.
-- `src/hearwrite/models.py` — the model registry. Every entry is a plain public
+- `src/hearwrite/coordinator/`: all state, all policy. The interesting code.
+- `src/hearwrite/models.py`: the model registry. Every entry is a plain public
   download with a pinned SHA-256 and a recorded licence.
-- `src/hearwrite/metrics.py` — diarization scoring. Abstention and error are
+- `src/hearwrite/metrics.py`: diarization scoring. Abstention and error are
   reported separately, never summed.
-- `docs/evaluation.md` — every measured number, and what it is not worth.
-- `src/hearwrite/{engines,speakers,vad,turn}/` — `base.py` is the interface,
+- `docs/evaluation.md`: every measured number, and what it is not worth.
+- `src/hearwrite/{engines,speakers,vad,turn}/`: `base.py` is the interface,
   `fake.py` is the scripted test double, anything else is a real backend.
-- `src/hearwrite/events.py`, `protocol.py` — the frozen contract.
-- `tests/tier1/` — fast, deterministic, no models. Most bugs belong here.
-- `NOTICE` — the licence map for every model. Update it when adding one.
+- `src/hearwrite/events.py`, `protocol.py`: the frozen contract.
+- `tests/tier1/`: fast, deterministic, no models. Most bugs belong here.
+- `docs/index.html`: GENERATED from `server/ui.html` by `scripts/build_site.py`.
+  Never edit it directly; edit the source page and rebuild.
+- `NOTICE`: the licence map for every model. Update it when adding one.
 
 ## Do not
 

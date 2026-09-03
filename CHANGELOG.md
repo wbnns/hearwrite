@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **A test that the published page cannot go stale.**
+  `test_site_is_current.py` rebuilds `docs/index.html` from
+  `server/ui.html` and fails if they differ, so the public copy of every number
+  on that page is enforced rather than remembered. It also asserts no capture
+  code survives into a page with no service behind it.
 - **An opening section on what the project is for**, naming Muse Voice Transcribe
   as the reference and stating the question plainly: whether the same capability
   set can come from open weight parts, on a laptop, at no cost. It says where the
@@ -53,6 +58,35 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **The memory and sizing figures were wrong, by a factor of six.** The README
+  and the deployment guide both said "~340MB shared, ~3MB per session" and "a
+  1GB VPS is enough". Both were measured when the zipformer was the default
+  recogniser. Measured now, on an Apple M4 with five sessions and 10s of audio
+  each: the default `nemotron-3.5-160ms` holds **2010MB** for one session and
+  **2015MB** for five, because a 653MB int8 encoder dominates and is shared,
+  while `zipformer-en` holds **442MB** for one and **571MB** for five. A 1GB box
+  needs `--model zipformer-en`; the default would be killed on it. Docs, the
+  deployment table, the sizing section and the site all say so now.
+- **The site's four headline figures each came from a different configuration.**
+  0.28s was the 80ms export, 4.4% was the zipformer's word error rate, 0.05x was
+  the zipformer's real time factor, and 340MB predated the current default. Read
+  as a row they described a configuration that does not exist. All four are the
+  default recogniser now, and the charts underneath still compare the two
+  properly, which is where a comparison belongs.
+- The README paired the zipformer's 4.4% word error rate with the nemotron's
+  160ms lookahead, as though one model produced both.
+- `hearwrite models` described `zipformer-en` as "The default". It has not been
+  the default since nemotron was added.
+- The emission delay table in `docs/evaluation.md` predated
+  `CommitPolicy.settle` and was measured on an unnamed clip. It is re-measured on
+  `conv_2spk.wav`, which `scripts/build_fixtures.py` builds, so the row can be
+  reproduced. The settle change left p50 at 0.36s, moved p90 from 0.68s to
+  0.76s, and took the worst case from 2.52s to 1.32s.
+- Stale test count in the README and CLAUDE.md: 183, actually 276.
+- The prune figures contradicted each other (602MB less 354MB is not 265MB) and
+  depended on which models happened to be in the cache. The claim now says what
+  prune does and that the amount depends on the cache, and points at the lever
+  that actually matters, which is the recogniser.
 - The recording showed two play buttons on a narrow screen. Chrome stacks the
   native control bar onto two rows for a small video, which makes it about 84px
   tall and reaches it up into the middle of the frame, where the overlay button

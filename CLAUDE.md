@@ -1,4 +1,4 @@
-# CLAUDE.md — the map for building on HearWrite
+# CLAUDE.md: the map for building on HearWrite
 
 Read this first. It is a map, not a readme: it tells you the one obvious way to
 do each thing and points at the source-of-truth files.
@@ -19,7 +19,7 @@ emits.
 ## The one rule that keeps the output trustworthy
 
 **Committed output is append-only.** Once a `commit` event is emitted, no later
-event may contradict it — not a correction, not a re-segmentation, not a speaker
+event may contradict it. Not a correction, not a re-segmentation, not a speaker
 relabel.
 
 This is not a style preference. It is the property that lets a consumer ignore
@@ -43,7 +43,7 @@ time, which is what makes CI trustworthy. `test_replay_speed_does_not_change_the
 will catch a violation, but by then you have already designed something that
 needs unpicking.
 
-Wall-clock lag is real and useful — it is passed in as `push(..., lag=...)` and
+Wall-clock lag is real and useful. It is passed in as `push(..., lag=...)` and
 only ever gates whether partials are dropped. It never reaches a timestamp.
 
 ## The anatomy of a component (copy this shape to add a backend)
@@ -60,7 +60,7 @@ src/hearwrite/<layer>/
 To add, say, a new ASR engine:
 
 1. Read `src/hearwrite/engines/base.py` in full, including the docstring. The
-   interface is defined to a **transducer's** shape on purpose — `push()`
+   interface is defined to a **transducer's** shape on purpose. `push()`
    returning `None` is the blank/wait decision, not an error. Adapt your engine
    up to that shape. Do not reshape the interface to suit an easier model.
 2. Write `src/hearwrite/engines/<name>.py`. It translates; it decides nothing.
@@ -69,7 +69,27 @@ To add, say, a new ASR engine:
    `[project.dependencies]`.
 4. Add a `NOTICE` entry with the licence of the **weights**, not just the code.
 5. The existing Tier 1 suite should pass unchanged. If it does not, either the
-   adapter is wrong or the interface leaked — investigate before "fixing" a test.
+   adapter is wrong or the interface leaked. Investigate before "fixing" a test.
+
+## The published page is generated, not edited
+
+`hearwrite.wbnns.com` is `docs/`, and `docs/index.html` is built from
+`src/hearwrite/server/ui.html` by `scripts/build_site.py`. **Edit the source page
+and rebuild; never edit `docs/index.html`.**
+
+```sh
+python3 scripts/build_site.py     # docs/index.html + docs/favicon.svg
+python3 scripts/build_og.py       # docs/og.png + docs/apple-touch-icon.png (needs Chrome)
+```
+
+There is one source because the two copies make the same claims about the same
+numbers, and the copy that would drift is the public one.
+`test_site_is_current.py` fails if you forget, so this is enforced rather than
+remembered. The build also strips the capture script and injects what belongs
+only to the published copy: the OpenGraph tags, which carry absolute URLs, and
+the analytics tag, which must never ship in the source page because a reader
+running `hearwrite serve` would then report to our property without agreeing to
+it.
 
 ## Source of truth (read these, don't guess)
 
@@ -86,6 +106,7 @@ To add, say, a new ASR engine:
 | How the four models get assembled | `src/hearwrite/pipeline.py` |
 | Which models are shared, and why | `src/hearwrite/loaders.py` |
 | What it costs to deploy | `docs/deployment.md` |
+| How the published page is built | `scripts/build_site.py` |
 | Which model has which licence | `NOTICE` |
 
 ## What is already built (don't rebuild it)
@@ -110,7 +131,7 @@ To add, say, a new ASR engine:
 - **Semantic endpointing** (`src/hearwrite/turn/smart_turn.py`) with Whisper
   style features in `src/hearwrite/features.py`, plus `hearwrite endpoints`.
 - **C1 confidence gating**, both directions, in `coordinator/commit.py`.
-- 183 Tier 1 tests and 28 Tier 2 tests, `bin/check`, and CI green on 3.11 and
+- 276 Tier 1 tests and 28 Tier 2 tests, `bin/check`, and CI green on 3.11 and
   3.13.
 
 - **The polish chain** (`src/hearwrite/polish/`): punctuation from a model, then
@@ -238,5 +259,5 @@ Each of these was found by running audio, not by reasoning, and each has a test:
 
 ## Done means
 
-`bin/check` is green — lint, format, types, and the whole Tier 1 suite. It needs
+`bin/check` is green: lint, format, types, and the whole Tier 1 suite. It needs
 no GPU, no network and no downloads, and it is exactly what CI runs.

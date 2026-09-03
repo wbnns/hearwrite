@@ -56,8 +56,10 @@ all = ["hearwrite[onnx,turn,whisper,server]"]
 hearwrite = "hearwrite.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/wbnns/hearwrite"
+Homepage = "https://hearwrite.wbnns.com"
 Source = "https://github.com/wbnns/hearwrite"
+Issues = "https://github.com/wbnns/hearwrite/issues"
+Changelog = "https://github.com/wbnns/hearwrite/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/hearwrite"]

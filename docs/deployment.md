@@ -12,26 +12,39 @@ embeddings, VAD and the turn detector.
 | | |
 |---|---|
 | Disk, Python packages | 172MB (9 packages) |
-| Disk, model weights | 602MB downloaded, **265MB after `hearwrite models --prune`** |
-| Memory, shared models | ~340MB, loaded once for the whole process |
-| Memory, per session | ~3MB |
-| CPU, one stream | real time factor **0.26** (default), 0.047 (`--model zipformer-en`) |
-| CPU, eight concurrent streams | 0.133 each with the light recogniser |
+| Disk, model weights | **653MB** for the default recogniser, plus 87MB shared |
+| Memory, default recogniser | **2010MB** for one session, **2015MB** for five |
+| Memory, `--model zipformer-en` | **442MB** for one session, **571MB** for five |
+| CPU, one stream | real time factor **0.25** (default), **0.055** (`--model zipformer-en`) |
 
-The shared-models figure is the important one. Every session used to load its
-own copy at about 230MB and a second of startup, so four sessions wanted a
-gigabyte before anyone spoke. The recognizer, the speaker embedder and the turn
-detector hold no per-stream state, so they are loaded once; only the VAD is
-per-session, because it carries state, and it is 629KB.
+Read the two memory rows before choosing a box, because they are eight times
+apart and the default is the expensive one. The default recogniser is a 653MB
+int8 encoder, and it dominates everything else: adding four more sessions costs
+5MB, because the model is loaded once and shared. The light recogniser starts at
+442MB and grows about 32MB per session, so it is the sessions that cost rather
+than the model.
+
+Sharing is what makes either number possible. Every session used to load its own
+copy of the recognizer, so four sessions wanted four copies. The recognizer, the
+speaker embedder and the turn detector hold no per-stream state, so they load
+once; only the VAD is per-session, because it carries state, and it is 629KB.
 
 ## Sizing
 
-A **1GB / 1 vCPU VPS** runs it. A **2GB / 2 vCPU** box is comfortable and leaves
-room for the OS and a TLS terminator.
+**Which recogniser you pick decides the box.**
+
+| Recogniser | Memory | Smallest sane box |
+|---|---|---|
+| `nemotron-3.5-160ms` (default) | 2010MB, flat in sessions | **4GB** |
+| `zipformer-en` | 442MB + ~32MB per session | **1GB** |
+
+A 1GB VPS runs this only with `--model zipformer-en`. The default recogniser
+will be killed on that box, and it is the default because it punctuates and
+commits sooner, not because it is small.
 
 Memory is the binding constraint, not CPU. At the measured rates a machine runs
-out of RAM long before it runs out of cycles, so size for `340MB + 3MB × sessions`
-plus headroom, then set the admission limit from what you measured.
+out of RAM long before it runs out of cycles, so size from the table, then set
+the admission limit from what you measured.
 
 **The CPU numbers above are from an Apple M4.** A typical shared-vCPU VPS is
 several times slower per core. Even at five times slower, one stream sits near
@@ -70,7 +83,7 @@ same code path rather than two things that can drift.
 
 Two notes for deploying it beyond localhost. Browsers only grant microphone
 access on a **secure context**, which means `localhost` works but a bare IP over
-plain HTTP does not — put TLS in front. And the page connects back to
+plain HTTP does not, so put TLS in front. And the page connects back to
 `location.host`, so it follows wherever you serve it without configuration.
 
 If you do not want it exposed, it is a static page with no privileged access;
@@ -157,7 +170,12 @@ hearwrite transcribe sample.wav --model zipformer-en   # the cheap one
 ## Making it smaller
 
 * `hearwrite models --prune` deletes the float builds of every model, which are
-  downloaded but never loaded. That is 354MB of 602MB.
+  downloaded but never loaded. How much that reclaims depends on which models you
+  have: it is 30MB against the default set, where only the punctuation model
+  ships a float build, and several hundred against a cache that has collected the
+  zipformers as well. It prints what it freed.
+* **`--model zipformer-en` is the big lever**, not pruning. It takes the process
+  from 2010MB to 442MB, which is the difference between a 4GB box and a 1GB one.
 * `--policy dictation` skips the speaker frontend entirely, which drops two
   models from the hot path. If you do not need speaker labels, do not pay for
   them.

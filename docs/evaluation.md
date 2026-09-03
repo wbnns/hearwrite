@@ -234,7 +234,7 @@ Quote the first, not the second.
 v3.0, v3.1 and v3.2 all take the same 80 by 800 log mel input. Fed the features
 Whisper defines and smart-turn's own reference computes, v3.0 and v3.1 separate
 finished from unfinished by about 0.20 of probability. v3.2 separates them by
-**-0.006** -- it returns the same answer for a finished sentence and one cut off
+**-0.006**. It returns the same answer for a finished sentence and one cut off
 after "and". Its preprocessing must differ in a way that is not published, and
 smart-turn's own `inference.py` still pins v3.1. HearWrite defaults to v3.1 and
 keeps v3.2 in the registry so the finding stays reproducible.
@@ -269,7 +269,7 @@ than a contradiction.
 confidence individually. Committing a confident later word advanced the commit
 frontier past an unconfident earlier one, which deleted it: the transcript came
 back as "is green. I think..." with "The build" silently gone. Only a contiguous
-prefix may be taken, and the same rule applies when holding a word -- a held
+prefix may be taken, and the same rule applies when holding a word: a held
 word blocks everything after it, because emitting word five while word four is
 pending leaves a hole the append only rule makes permanent.
 
@@ -295,7 +295,7 @@ why both ship.
 
 Not a judgement call, a measurement. Given Nemotron's own output the punctuation
 model returns `The times January three, two thousand nine chancellor on Brink of
-second Bailout for Banks` -- it lowercases two proper nouns and capitalises a
+second Bailout for Banks`. It lowercases two proper nouns and capitalises a
 common one. Given text that is already punctuated it produces `stairs..`. And
 given UPPERCASE text it returns it unchanged, which would make the whole stage a
 silent no-op behind exactly the recogniser it exists to help.
@@ -353,22 +353,30 @@ over conversion corrupts the transcript.
 
 Nemotron ships at five lookaheads and the chunk size is the latency dial, baked
 into the export. Smaller is not automatically better, because a smaller chunk
-means more forward passes per second of audio. Measured end to end on the same
-clip:
+means more forward passes per second of audio. Measured end to end on
+`conv_2spk.wav`, the 49s two speaker fixture that `scripts/build_fixtures.py`
+builds, so the row is reproducible rather than "the same clip":
 
-| Model | Emission p50 | p90 | Real time factor |
-|---|---|---|---|
-| `nemotron-3.5-80ms` | 0.36s | 0.92s | 0.47 |
-| `nemotron-3.5-160ms` (default) | 0.44s | 1.00s | **0.26** |
-| `zipformer-en` + polish | 0.52s | 0.88s | 0.045 |
+| Model | Emission p50 | p90 | worst | Real time factor |
+|---|---|---|---|---|
+| `nemotron-3.5-80ms` | 0.28s | 0.68s | 1.16s | 0.46 |
+| `nemotron-3.5-160ms` (default) | 0.36s | 0.76s | 1.32s | **0.25** |
+| `zipformer-en` + polish | 0.52s | 0.68s | 0.84s | 0.055 |
 
-80ms buys 80 milliseconds of median delay for 85% more CPU. That is a poor trade
+80ms buys 80 milliseconds of median delay for 86% more CPU. That is a poor trade
 on a laptop and a worse one on a VPS, so 160ms is the default. The 80ms export
 stays registered so the trade is checkable rather than asserted.
 
-Note the zipformer row: it has the LOWEST p90 of the three despite the highest
-p50, because a cheaper model finishes its tail sooner. Median and tail latency
-do not move together.
+Note the zipformer row: it ties the best p90 and has the best worst case despite
+the highest p50, because a cheaper model finishes its tail sooner. Median and
+tail latency do not move together.
+
+These numbers postdate `CommitPolicy.settle`. On this fixture that change left
+p50 alone at 0.36s, moved p90 from 0.68s to 0.76s, and took the worst case from
+**2.52s to 1.32s**. It trades a little at the 90th percentile for a lot at the
+tail, which is the right direction: the tail was a word waiting for the session
+to end, and a reader notices one five second word more than a hundred words
+arriving 80ms apart.
 
 ## Two semantic gates, failing in opposite directions
 
@@ -452,7 +460,7 @@ correct transcript, which is the same promise `partial` carries.
 ### Utterances are fragments, so the model gets context
 
 An endpoint can fall mid clause, so polishing each utterance alone capitalised
-the middle of sentences -- "the Stairs". The previous utterance's last six words
+the middle of sentences, as in "the Stairs". The previous utterance's last six words
 are passed as context and stripped from the result, which tells the model the
 clause continues.
 
@@ -500,6 +508,6 @@ travels with the model and a stale one fails quietly.
 
 The first attempt at this calibration used macOS `say` voices, and it was
 worthless. On TTS audio the same voice reading different text scored 0.54 while
-two different voices reading the same text scored 0.83 -- the embedding was
+two different voices reading the same text scored 0.83. The embedding was
 tracking the words, not the speaker. Speaker embedding models are trained on
 human speech and do not transfer to a synthesiser. Use real recordings.

@@ -14,9 +14,13 @@ easy part and they are swappable; the hard part is coordinating three signals
 into one ordered stream a client can trust. That coordination is what this
 project actually is.
 
-It runs on a laptop. A 1GB VPS is enough.
+It runs on a laptop. A 1GB VPS is enough with `--model zipformer-en`; the
+default recogniser wants 4GB.
 
-## Try it on your Mac
+**[hearwrite.wbnns.com](https://hearwrite.wbnns.com)** has a recording of a real
+session and the measurements below.
+
+## Try it
 
 ```sh
 pip install 'hearwrite[onnx,turn,server]'
@@ -30,7 +34,7 @@ the endpoint fired.
 
 The page is served by the same process on the same port, so there is nothing
 else to run. It uses your browser's microphone, captures at 16kHz, and streams
-raw PCM over the WebSocket the service already speaks — which means the demo and
+raw PCM over the WebSocket the service already speaks, which means the demo and
 a real integration are the same code path.
 
 ```
@@ -75,12 +79,12 @@ estimate.
 
 | | |
 |---|---|
-| Emission delay | p50 **0.28s** to **0.44s**, p90 **0.52s** to **1.00s** |
+| Emission delay | p50 **0.28s** to **0.52s**, p90 **0.68s** to **0.76s** |
 | False endpoint | **5.0%** of mid thought pauses |
-| Real time factor | **0.26** default recogniser, **0.045** with the light one |
-| Memory | ~340MB shared across sessions, ~3MB per session |
+| Real time factor | **0.25** default recogniser, **0.055** with the light one |
+| Memory | **~2.0GB** default recogniser, **~440MB** with the light one |
 | Install | one package, zero dependencies, before any extra |
-| WER, LibriSpeech dev-clean | **4.4%** streaming, 160ms lookahead |
+| WER, LibriSpeech dev-clean | **6.8%** default, **4.4%** light recogniser |
 
 Diarization is reported separately and with its failure case attached, because a
 number in a table gets read and a caveat under it does not:
@@ -169,13 +173,13 @@ before it can be identified at all, so most turns produce no embedding.
 
 **The honest fix is not a better threshold, it is per speaker capture.** If each
 person has their own microphone and their own stream, the speaker label is
-simply which stream the audio arrived on -- bookkeeping rather than machine
+simply which stream the audio arrived on: bookkeeping rather than machine
 learning, and effectively perfect. That is why meeting tools do not struggle with
 this. HearWrite already gives each connection its own independent session, so
 three people on three laptops each get a clean transcript today; what is missing
 is merging those streams into one timeline. See the roadmap.
 
-`speakers=SOLO` skips the frontend entirely. Not "clustering with one cluster" --
+`speakers=SOLO` skips the frontend entirely. Not "clustering with one cluster":
 the models never run. Diarizing a single voice occasionally splits that person in
 two, which is worse than making no distinction, and it costs two models on the
 hot path for the privilege.
@@ -222,7 +226,7 @@ hearwrite transcribe rec.wav --model zipformer-en   # 5x cheaper, no punctuation
 hearwrite serve --port 8080             # WebSocket: binary PCM up, JSON down
 hearwrite bench fixture.wav             # score diarization against ground truth
 hearwrite endpoints midthought/         # score endpointing on mid thought clips
-hearwrite models --prune                # reclaim 354MB of unread model files
+hearwrite models --prune                # delete float builds that never load
 ```
 
 As a library:
@@ -239,15 +243,24 @@ for chunk in stream_of_pcm:
 
 ## Deploying it
 
-No GPU anywhere. 172MB of packages, 265MB of weights after
-`hearwrite models --prune`, ~340MB of memory for the models shared across every
-session and about 3MB per session on top. A `Dockerfile` is included.
+No GPU anywhere, and 172MB of packages. **Memory is set by which recogniser you
+pick, and the two are far apart**, so size for the one you will actually run:
 
-Models load once and are shared. Five concurrent sessions cost 339MB in total,
-not 1.1GB, and connecting takes 0.01s after the first.
+| Recogniser | 1 session | 5 sessions | Box |
+|---|---|---|---|
+| `nemotron-3.5-160ms` (default) | **2010MB** | **2015MB** | 4GB |
+| `zipformer-en` (`--model`) | **442MB** | **571MB** | 1GB |
 
-See [docs/deployment.md](./docs/deployment.md) for sizing, systemd, and what to
-turn off when you need it smaller.
+Measured resident set on an Apple M4 after 10s of audio per session. The default
+is a 653MB int8 encoder and it dominates: it barely grows as sessions are added,
+because the model is loaded once and shared. The light recogniser starts eight
+times smaller and grows about 32MB per session.
+
+**A 1GB box needs `--model zipformer-en`.** The default will not fit. That is the
+trade for punctuation, casing and lower delay; see the table above.
+
+A `Dockerfile` is included. See [docs/deployment.md](./docs/deployment.md) for
+sizing, systemd, and what to turn off when you need it smaller.
 
 ## Models, and their licences
 
@@ -307,7 +320,7 @@ python3 -m venv .venv
 bin/check                      # lint, typecheck, Tier 1: the definition of done
 ```
 
-`bin/check` runs 183 tests in half a second, needs no GPU, no network and no
+`bin/check` runs 276 tests in half a second, needs no GPU, no network and no
 model downloads, and is exactly what CI runs. If it is green locally the
 pipeline will be green.
 
@@ -387,7 +400,7 @@ Issues and PRs welcome. Please run `bin/check` before opening one, and see
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT. See [LICENSE](./LICENSE).
 
 Third party model weights carry their own terms and are downloaded, never
 redistributed here. [NOTICE](./NOTICE) records every one of them.
