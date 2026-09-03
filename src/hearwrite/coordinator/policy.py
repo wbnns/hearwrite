@@ -57,7 +57,7 @@ class EndpointPolicy:
 # trade dictation wants and a voice agent does not.
 _ENDPOINT_PRESETS = {
     EndpointMode.CONSERVATIVE: EndpointPolicy(1.0, 0.70, 4.0),
-    EndpointMode.BALANCED: EndpointPolicy(0.6, 0.60, 2.0),
+    EndpointMode.BALANCED: EndpointPolicy(0.6, 0.60, 1.4),
     EndpointMode.AGGRESSIVE: EndpointPolicy(0.25, 0.55, 1.2),
 }
 

@@ -31,7 +31,9 @@
   .text { font-size:18px; line-height:1.6; }
   .partial { color:var(--dim); font-style:italic; }
   .unlabelled { border-bottom:1px dotted var(--null); }
-  .brk { color:var(--dim); font-size:12px; vertical-align:2px; margin:0 3px; }
+  /* A sentence end reads as a break in the text, not as a symbol inside it.
+     An inline glyph every few seconds turns a transcript into punctuation. */
+  .brk { display:block; height:0; margin:0 0 9px; }
   /* A polish replaces bare words with punctuated ones. The flash is there so it
      is visible that the text was re-rendered rather than corrected. */
   @keyframes settle { from { background:var(--line); } to { background:transparent; } }
@@ -57,8 +59,8 @@
     are recognised. Grey italic text is a <code>partial</code> and may change;
     solid text is <code>commit</code>ted and never will. A dotted underline means
     the speaker is not yet identified — it fills in once there is enough audio.
-    A <span class="brk">⏎</span> is where the endpoint decided you finished a
-    sentence; it is a break <em>within</em> a speaker's turn, not a new one.
+    A line break is where the endpoint decided you finished a sentence; it is a
+    break <em>within</em> a speaker's turn, not a new one.
     When a sentence finishes it may flash as a second model puts the punctuation
     back — the words never change, only how they are written.
   </div>
@@ -183,7 +185,6 @@ function render(ev) {
     if (last && !last.classList.contains("brk")) {
       const mark = document.createElement("span");
       mark.className = "brk";
-      mark.textContent = "⏎ ";
       el.appendChild(mark);
       scrollDown();
     }

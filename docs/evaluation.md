@@ -279,6 +279,34 @@ Note the zipformer row: it has the LOWEST p90 of the three despite the highest
 p50, because a cheaper model finishes its tail sooner. Median and tail latency
 do not move together.
 
+## Two semantic gates, failing in opposite directions
+
+smart-turn reads the audio. A recogniser that punctuates has already judged
+where sentences end, and reading its full stops costs nothing.
+
+Measured on a 39 second reading of verse:
+
+| Gate | Endpoints | Where |
+|---|---|---|
+| smart-turn | 7 | six mid clause: "upon a", "the muttering", "what is" |
+| recogniser punctuation | 2 | both at real boundaries |
+
+smart-turn scored every one of those pauses between 0.60 and 0.73, and its
+HIGHEST scores went to mid clause fragments. Verse read aloud falls in pitch at
+every line end, and an audio native model reads that as finality. Raising the
+threshold would not have helped, because the true boundary scored no higher than
+the false ones.
+
+The reverse case is just as real. On a headline transcribed as "...for Banks"
+with no full stop, the punctuation gate never says complete and every utterance
+waits for the timeout.
+
+So they trade precision against recall, and precision is the one to favour: a
+false endpoint puts a turn boundary in the wrong place permanently, while a
+missed one costs latency and nothing else. `--turn-detector auto` reads
+punctuation where the recogniser produces any and uses smart-turn where it does
+not. The balanced timeout dropped from 2.0s to 1.4s to bound what a miss costs.
+
 ## C1 early commit does not apply to a transducer
 
 The two engine shapes mean different things by "tentative", and the difference

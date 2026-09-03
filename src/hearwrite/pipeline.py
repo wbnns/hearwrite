@@ -42,6 +42,20 @@ class Backends:
     model: str | None = None
     speaker_model: str = "titanet-small"
     turn_model: str = "smart-turn"
+    #: Which semantic gate. "auto" reads the recogniser's own punctuation when
+    #: it produces any, and falls back to smart-turn when it does not.
+    #:
+    #: The two fail in opposite directions, so this is a real choice. On a 39
+    #: second reading of verse smart-turn fired SEVEN endpoints, six of them mid
+    #: clause, because verse falls in pitch at every line end and an audio
+    #: native model reads that as finality. The recogniser's own full stops gave
+    #: two, both right. But on a headline with no full stop at all, punctuation
+    #: never says "complete" and every utterance waits for the timeout.
+    #:
+    #: Precision is the one to favour: a false endpoint puts a boundary in the
+    #: wrong place permanently, while a missed one costs latency and nothing
+    #: else.
+    turn_detector: str = "auto"
     language: str | None = None
     threads: int = 2
     #: Disable the acoustic gate. Endpointing then relies on the flush path.
@@ -126,12 +140,33 @@ def build(policy: Policy, backends: Backends | None = None) -> Components:
         )
 
     if backends.turn:
-        from .turn.smart_turn import SmartTurnDetector
-
-        components.turn = SmartTurnDetector.from_model(backends.turn_model)
+        components.turn = build_turn_detector(backends)
 
     components.polish = build_polish(backends)
     return components
+
+
+def build_turn_detector(backends: Backends) -> Any:
+    """The semantic gate, chosen to suit the recogniser in front of it."""
+    choice = backends.turn_detector
+    if choice == "auto":
+        choice = "punctuation" if _recogniser_punctuates(backends) else "smart"
+    if choice == "punctuation":
+        from .turn.textual import PunctuationTurnDetector
+
+        return PunctuationTurnDetector()
+    from .turn.smart_turn import SmartTurnDetector
+
+    return SmartTurnDetector.from_model(backends.turn_model)
+
+
+def _recogniser_punctuates(backends: Backends) -> bool:
+    if backends.engine == "whisper":
+        return True
+    from .models import REGISTRY
+
+    spec = REGISTRY.get(backends.model or DEFAULT_SHERPA_MODEL)
+    return bool(spec.punctuates) if spec else False
 
 
 def build_polish(backends: Backends) -> Any:
@@ -165,9 +200,4 @@ def _wants_punctuation(backends: Backends) -> bool:
     """
     if backends.punctuate is not None:
         return backends.punctuate
-    if backends.engine == "whisper":
-        return False  # Whisper punctuates.
-    from .models import REGISTRY
-
-    spec = REGISTRY.get(backends.model or DEFAULT_SHERPA_MODEL)
-    return not (spec.punctuates if spec else False)
+    return not _recogniser_punctuates(backends)

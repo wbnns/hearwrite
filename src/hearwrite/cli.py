@@ -92,6 +92,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="keep spoken numbers as words instead of rewriting them as figures",
     )
     transcribe.add_argument(
+        "--turn-detector",
+        default="auto",
+        choices=("auto", "smart", "punctuation"),
+        help="semantic gate. auto reads the recogniser's own punctuation where "
+        "it produces any, else smart-turn",
+    )
+    transcribe.add_argument(
         "--provider",
         default="cpu",
         help="onnxruntime execution provider: cpu, cuda, coreml. Measure before "
@@ -160,6 +167,13 @@ def build_parser() -> argparse.ArgumentParser:
         dest="normalise",
         action="store_false",
         help="keep spoken numbers as words instead of rewriting them as figures",
+    )
+    serve.add_argument(
+        "--turn-detector",
+        default="auto",
+        choices=("auto", "smart", "punctuation"),
+        help="semantic gate. auto reads the recogniser's own punctuation where "
+        "it produces any, else smart-turn",
     )
     serve.add_argument(
         "--provider",
@@ -391,6 +405,7 @@ def _backends(args):
         punctuate=getattr(args, "punctuate", None),
         normalise=getattr(args, "normalise", True),
         provider=getattr(args, "provider", "cpu"),
+        turn_detector=getattr(args, "turn_detector", "auto"),
     )
 
 
@@ -451,7 +466,21 @@ def _transcribe(args) -> int:
     text = display_text(events)
     print(f"transcript: {text}")
     if not policy.is_solo:
-        unlabelled = sum(1 for e in commits if e.payload["speaker"] is None)
+        # Count what the consumer ENDS UP with, not what a commit carried at
+        # the moment it was made. A word committed as null and filled a second
+        # later by a `speaker` event is labelled; reporting it as unlabelled
+        # made the pipeline look far worse than it is (24 of 81 rather than 2).
+        filled = {e.payload["seq"] for e in events if e.kind == "speaker" and "seq" in e.payload}
+        by_turn = {
+            e.payload["turn"] for e in events if e.kind == "speaker" and "seq" not in e.payload
+        }
+        unlabelled = sum(
+            1
+            for e in commits
+            if e.payload["speaker"] is None
+            and e.seq not in filled
+            and e.payload.get("turn") not in by_turn
+        )
         print(
             f"speakers:   {coordinator.speaker_count} found, "
             f"{unlabelled}/{len(commits)} words unlabelled"
