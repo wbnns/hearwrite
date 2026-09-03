@@ -67,8 +67,10 @@ STYLE = """  .demo { margin:0 0 34px; }
   .play { display:none; }
   .player[data-ready] .play {
     display:grid; place-items:center; position:absolute;
-    /* Sits in the empty band below the transcript rather than centred on the
-       frame, because the transcript is the thing worth seeing on the poster. */
+    /* In the empty band between the transcript and the divider, not centred on
+       the frame: dead centre covers the transcript, which is what the poster is
+       for. This band was unusable while the native bar showed, because Chrome
+       stacks that bar onto two rows on a narrow video and it reaches up here. */
     left:50%; top:63%; transform:translate(-50%,-50%);
     width:74px; height:74px; padding:0; border:1px solid rgba(242,242,240,0.22);
     border-radius:999px; background:rgba(11,11,13,0.66); color:#f2f2f0;
@@ -79,7 +81,7 @@ STYLE = """  .demo { margin:0 0 34px; }
   .player[data-ready] .play:hover { transform:translate(-50%,-50%) scale(1.07);
                                     background:rgba(11,11,13,0.82); }
   .play:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
-  .player[data-playing] .play { opacity:0; pointer-events:none; }
+  .player[data-playing] .play { display:none; }
   @media (prefers-reduced-motion:reduce) {
     .player[data-ready] .play { transition:none; }
     .player[data-ready] .play:hover { transform:translate(-50%,-50%); }
@@ -93,17 +95,32 @@ SCRIPT = """<script>
   const clip = document.getElementById("clip");
   const play = document.getElementById("play");
   if (!box || !clip || !play) return;
+
+  // The markup carries `controls` so a reader with no JavaScript still gets a
+  // way to play. With JavaScript the overlay takes that job until playback
+  // starts, for two reasons. The native bar has a fixed height in CSS pixels,
+  // so on a narrow screen it covers a large share of a scaled down video,
+  // including the counters that the poster frame exists to show. And its own
+  // play button lands close enough to the overlay to read as two play buttons.
   box.dataset.ready = "1";
-  play.addEventListener("click", () => clip.play());
-  const sync = () => {
-    if (clip.paused) delete box.dataset.playing;
-    else box.dataset.playing = "1";
+  clip.controls = false;
+
+  const begin = () => {
+    // The overlay is the opening affordance only. Once playback has started the
+    // native controls are better at pausing, seeking and volume, so the overlay
+    // goes for good rather than returning on every pause and colliding again.
+    box.dataset.playing = "1";
+    clip.controls = true;
+    clip.play();
   };
-  ["play", "pause", "ended"].forEach(e => clip.addEventListener(e, sync));
-  sync();
+
+  play.addEventListener("click", begin);
+  // With no control bar yet, clicking the picture is the obvious thing to try.
+  clip.addEventListener("click", () => { if (!clip.controls) begin(); });
 })();
 </script>
 """
+
 
 
 # Analytics, and this one matters: the published page and the page a user gets
@@ -146,9 +163,9 @@ OG = """<meta property="og:type" content="website">
 # claim has to name the machine instead of pointing at itself.
 OLD_SUB = """    <p class="sub">Everything below is measured on the machine serving this page,
       and every number is reproducible with a command in the repository.</p>"""
-NEW_SUB = """    <p class="sub">The demo above is a recording. Every number below was measured
-      on an Apple M4 with no accelerator, and each one is reproducible with a
-      command in the repository.</p>"""
+NEW_SUB = """    <p class="sub">The demo below is a recording. Every number on this page was
+      measured on an Apple M4 with no accelerator, and each one is reproducible
+      with a command in the repository.</p>"""
 
 
 def build(source: str) -> str:

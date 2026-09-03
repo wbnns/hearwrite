@@ -53,6 +53,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The recording showed two play buttons on a narrow screen. Chrome stacks the
+  native control bar onto two rows for a small video, which makes it about 84px
+  tall and reaches it up into the middle of the frame, where the overlay button
+  sat. The overlay is the opening affordance only, so it now replaces the native
+  bar until playback starts and then hands over to it for good. That also means
+  the poster frame is unobstructed at every width, where before the control bar
+  covered the counters.
+- The hero said the demo was "above" it. The demo is below it.
 - **The last word of an utterance no longer waits for the session to end.** A
   transducer holds its trailing word until a new word starts, so a short
   utterance left its final word tentative until the user pressed stop: measured
