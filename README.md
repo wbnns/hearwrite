@@ -404,3 +404,16 @@ MIT. See [LICENSE](./LICENSE).
 
 Third party model weights carry their own terms and are downloaded, never
 redistributed here. [NOTICE](./NOTICE) records every one of them.
+
+## A note from the creator
+
+Hey, it's wbnns :) just wanted to reach out and say hi!
+
+This one has sharp edges I already know about, and probably a few I don't. If the
+diarization mangles your meeting, if the numbers on your machine look nothing
+like the numbers here, or if the docs sent you down the wrong path, please tell
+me. A measurement from someone else's hardware is worth more to me than anything
+I can run on mine.
+
+Say hi on **[Telegram](https://t.me/wbnns)**, **[X](https://x.com/wbnns)**, or
+email **[hello@wbnns.com](mailto:hello@wbnns.com)**.
