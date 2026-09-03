@@ -57,10 +57,13 @@ class Session:
         vad=None,
         speakers=None,
         turn=None,
+        polish=None,
         record: Path | None = None,
     ) -> None:
         self.policy = policy
-        self.coordinator = Coordinator(policy, engine=engine, vad=vad, speakers=speakers, turn=turn)
+        self.coordinator = Coordinator(
+            policy, engine=engine, vad=vad, speakers=speakers, turn=turn, polish=polish
+        )
         self._started = time.monotonic()
         self._audio_seconds = 0.0
         # Recording exists for one reason: when a transcript is bad, the first

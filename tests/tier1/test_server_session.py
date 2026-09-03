@@ -135,3 +135,39 @@ def test_backends_defaults_match_the_cli_defaults():
         )
         assert args.provider == defaults.provider
         assert args.normalise == defaults.normalise
+
+
+def test_a_session_accepts_exactly_what_the_builder_produces():
+    """The contract between the pipeline and the session, checked directly.
+
+    Renaming a component from `punctuator` to `polish` updated the builder and
+    not the Session, so every WebSocket connection died with a TypeError while
+    the page still served a clean 200. Nothing caught it: the existing tests
+    construct a Session with explicit arguments, which is precisely the path
+    that cannot drift.
+
+    This is the fourth time a component has been wired in two places and only
+    one updated, so the test compares the two signatures rather than any
+    particular field.
+    """
+    import inspect
+
+    from hearwrite.pipeline import Components
+    from hearwrite.server.session import Session
+
+    produced = set(Components(engine=object()).as_kwargs())
+    accepted = set(inspect.signature(Session.__init__).parameters) - {"self", "policy"}
+    missing = produced - accepted
+    assert not missing, f"Session cannot accept what build() returns: {missing}"
+
+
+def test_the_coordinator_accepts_it_too():
+    """The same contract one layer down."""
+    import inspect
+
+    from hearwrite import Coordinator
+    from hearwrite.pipeline import Components
+
+    produced = set(Components(engine=object()).as_kwargs())
+    accepted = set(inspect.signature(Coordinator.__init__).parameters) - {"self", "policy"}
+    assert not produced - accepted
