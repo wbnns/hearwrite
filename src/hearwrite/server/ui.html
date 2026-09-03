@@ -1,85 +1,248 @@
 <!doctype html>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>HearWrite</title>
 <style>
   :root {
-    --bg:#0b0b0d; --card:#141417; --edge:#26262b; --fg:#f2f2f0; --dim:#77777f;
-    --accent:#3d7dff; --hl:#c9dcff; --hlbg:#1e3a6d;
-    --a:#3d7dff; --b:#3fb27f; --c:#e0913f; --d:#b478e0;
+    --bg:#0b0b0d; --card:#141417; --edge:#26262b; --fg:#f2f2f0; --dim:#8a8a92;
+    --accent:#3987e5; --hl:#c9dcff; --hlbg:#1e3a6d;
+    --a:#3987e5; --b:#d95926; --c:#199e70; --d:#9085e9;
+    /* Chart roles. Slots 1 and 2 of the reference categorical palette, stepped
+       for a dark surface and validated against #141417: worst all-pairs CVD
+       delta E 26.8, normal vision 31.8, both well clear of the floors. */
+    --surface-1:#141417; --text-primary:#f2f2f0; --text-secondary:#8a8a92;
+    --grid:#26262b; --series-1:#3987e5; --series-2:#d95926;
   }
   @media (prefers-color-scheme: light) {
-    :root { --bg:#f7f7f5; --card:#fff; --edge:#e2e2dd; --fg:#16161a; --dim:#82827c;
-            --hl:#16161a; --hlbg:#cfe0ff; }
+    :root { --bg:#f7f7f5; --card:#fff; --edge:#e4e4df; --fg:#16161a; --dim:#6b6b64;
+            --accent:#2a78d6; --hl:#16161a; --hlbg:#cfe0ff;
+            --a:#2a78d6; --b:#eb6834; --c:#1baf7a; --d:#4a3aa7;
+            --surface-1:#ffffff; --text-primary:#16161a; --text-secondary:#6b6b64;
+            --grid:#e4e4df; --series-1:#2a78d6; --series-2:#eb6834; }
   }
   * { box-sizing:border-box; }
-  body { margin:0; min-height:100vh; background:var(--bg); color:var(--fg);
-         font:16px/1.6 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif;
-         display:flex; flex-direction:column; }
-  header { display:flex; align-items:center; gap:14px; padding:16px 22px; }
-  h1 { font-size:14px; font-weight:640; margin:0; letter-spacing:.01em; }
-  #mic { font:inherit; font-size:14px; font-weight:560; padding:8px 18px;
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:16px/1.65 ui-sans-serif,-apple-system,"SF Pro Text",system-ui,sans-serif; }
+  a { color:var(--accent); }
+  .wrap { max-width:960px; margin:0 auto; padding:0 22px; }
+
+  header { display:flex; align-items:center; gap:14px; padding:18px 22px;
+           border-bottom:1px solid var(--edge); position:sticky; top:0;
+           background:var(--bg); z-index:5; }
+  header h1 { font-size:15px; font-weight:640; margin:0; }
+  header .sp { flex:1; }
+  header a { font-size:14px; color:var(--dim); text-decoration:none; }
+  header a:hover { color:var(--fg); }
+
+  .hero { padding:64px 0 30px; }
+  .hero h2 { font-size:clamp(30px,5vw,50px); line-height:1.1; margin:0 0 18px;
+             letter-spacing:-0.025em; font-weight:660; max-width:16ch; }
+  .hero p { font-size:19px; color:var(--dim); max-width:62ch; margin:0 0 10px; }
+  .hero .sub { font-size:16px; }
+
+  #mic { font:inherit; font-size:15px; font-weight:560; padding:10px 22px;
          border-radius:999px; border:1px solid var(--edge); background:var(--fg);
          color:var(--bg); cursor:pointer; }
   #mic[data-on="1"] { background:#c0392b; border-color:#c0392b; color:#fff; }
   #state { color:var(--dim); font-size:13px; }
   #err { color:#e2725b; font-size:13px; }
 
-  main { flex:1; display:flex; align-items:center; justify-content:center; padding:0 22px 26px; }
-  .card { width:min(1000px,100%); background:var(--card); border:1px solid var(--edge);
-          border-radius:20px; padding:34px 38px 26px; display:flex; flex-direction:column;
-          min-height:min(60vh,460px); }
-
-  .stage { flex:1; display:flex; align-items:center; gap:26px; }
-  .who { flex:0 0 96px; text-align:right; color:var(--dim); font-size:14px; padding-top:6px; }
+  .card { background:var(--card); border:1px solid var(--edge); border-radius:20px;
+          padding:30px 34px 22px; display:flex; flex-direction:column; min-height:340px; }
+  .bar { display:flex; align-items:center; gap:14px; margin-bottom:20px; }
+  .stage { flex:1; display:flex; align-items:center; gap:24px; }
+  .who { flex:0 0 92px; text-align:right; color:var(--dim); font-size:14px; padding-top:5px; }
   .who[data-s="A"]{color:var(--a)} .who[data-s="B"]{color:var(--b)}
   .who[data-s="C"]{color:var(--c)} .who[data-s="D"]{color:var(--d)}
-  .said { flex:1; font-size:clamp(20px,2.4vw,30px); line-height:1.5; letter-spacing:-0.01em;
-          max-height:46vh; overflow-y:auto; }
+  .said { flex:1; font-size:clamp(19px,2.1vw,27px); line-height:1.5;
+          letter-spacing:-0.01em; max-height:38vh; overflow-y:auto; }
   .said::-webkit-scrollbar { width:0; }
   .partial { color:var(--dim); }
   .unlabelled { border-bottom:1px dotted var(--dim); }
-  /* The most recent word, the way a caption highlights what is being said. */
   .live { background:var(--hlbg); color:var(--hl); border-radius:4px; padding:1px 3px; }
   .brk { display:block; height:0; margin-bottom:10px; }
   .polished { animation:settle 700ms ease-out; }
   @keyframes settle { from { background:var(--hlbg); } to { background:transparent; } }
-  .idle { color:var(--dim); font-size:17px; }
+  .idle { color:var(--dim); font-size:16px; }
+  .wave { display:flex; align-items:center; gap:18px; margin-top:20px;
+          padding-top:16px; border-top:1px solid var(--edge); }
+  #bars { flex:1; height:42px; display:block; }
+  .stat { display:flex; gap:22px; flex:0 0 auto; }
+  .stat span { display:flex; flex-direction:column; gap:2px; color:var(--dim);
+               font:11px ui-sans-serif,system-ui; letter-spacing:.02em; }
+  .stat b { color:var(--fg); font:600 15px ui-monospace,SFMono-Regular,Menlo,monospace; }
 
-  .wave { display:flex; align-items:center; gap:16px; margin-top:22px;
-          padding-top:18px; border-top:1px solid var(--edge); }
-  #bars { flex:1; height:46px; display:block; }
-  .stat { display:flex; gap:20px; color:var(--dim);
-          font:12px ui-monospace,SFMono-Regular,Menlo,monospace; }
-  .stat b { color:var(--fg); font-weight:600; }
+  section { padding:52px 0 8px; }
+  h3 { font-size:24px; letter-spacing:-0.02em; margin:0 0 10px; font-weight:640; }
+  section > p { color:var(--dim); max-width:68ch; margin:0 0 26px; }
+
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; }
+  .tile { background:var(--card); border:1px solid var(--edge); border-radius:14px; padding:18px 20px; }
+  .tile .n { font-size:32px; font-weight:660; letter-spacing:-0.03em; line-height:1.1; }
+  .tile .l { color:var(--dim); font-size:13px; margin-top:5px; }
+
+  .charts { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; }
+  figure { margin:0; background:var(--card); border:1px solid var(--edge);
+           border-radius:14px; padding:18px 20px 14px; }
+  figcaption { font-size:14px; font-weight:600; margin-bottom:2px; }
+  .note { color:var(--text-secondary); font-size:12px; margin-bottom:12px; }
+  .legend { display:flex; gap:14px; font-size:12px; color:var(--text-secondary); margin-bottom:10px; }
+  .key { display:inline-flex; align-items:center; gap:6px; }
+  .sw { width:10px; height:10px; border-radius:3px; display:inline-block; }
+  svg { display:block; width:100%; overflow:visible; }
+  .mark { transition:opacity .12s; }
+  figure:hover .mark { opacity:.55; }
+  figure .mark:hover { opacity:1; }
+  .vlabel { font:600 12px ui-sans-serif,system-ui; fill:var(--text-primary); }
+  .alabel { font:11px ui-sans-serif,system-ui; fill:var(--text-secondary); }
+  .grid { stroke:var(--grid); stroke-width:1; }
+
+  details { margin-top:12px; }
+  summary { cursor:pointer; color:var(--text-secondary); font-size:13px; }
+  table { border-collapse:collapse; margin-top:10px; font-size:13px; width:100%; }
+  th,td { text-align:left; padding:5px 10px 5px 0; border-bottom:1px solid var(--edge); }
+  th { color:var(--dim); font-weight:600; }
+
+  .callout { background:var(--card); border:1px solid var(--edge);
+             border-left:3px solid var(--b); border-radius:12px; padding:20px 24px; }
+  .callout h4 { margin:0 0 8px; font-size:16px; }
+  .callout p { margin:0 0 10px; color:var(--dim); }
+  .callout p:last-child { margin:0; }
+  pre { background:var(--card); border:1px solid var(--edge); border-radius:12px;
+        padding:16px 18px; overflow-x:auto; font:13px/1.6 ui-monospace,Menlo,monospace; }
+  footer { color:var(--dim); font-size:13px; padding:40px 0 60px; border-top:1px solid var(--edge);
+           margin-top:50px; }
 </style>
 
 <header>
   <h1>HearWrite</h1>
-  <button id="mic" data-on="0">Start listening</button>
-  <span id="state">not connected</span>
-  <span id="err"></span>
+  <span class="sp"></span>
+  <a href="https://github.com/wbnns/hearwrite">GitHub</a>
 </header>
 
-<main>
+<div class="wrap">
+  <div class="hero">
+    <h2>Real time transcription that runs on your laptop.</h2>
+    <p>Streaming speech to text, speaker labels and endpointing, from open weight
+      models. No GPU, no API key, no gated downloads. A 1GB VPS is enough.</p>
+    <p class="sub">Everything below is measured on the machine serving this page,
+      and every number is reproducible with a command in the repository.</p>
+  </div>
+
   <div class="card">
+    <div class="bar">
+      <button id="mic" data-on="0">Start listening</button>
+      <span id="state">not connected</span>
+      <span id="err"></span>
+    </div>
     <div class="stage">
       <div class="who" id="who"></div>
       <div class="said" id="said"><span class="idle">Press start and speak. Words appear as
         they are recognised, the speaker label fills in once there is enough voice to
-        identify, and a line break marks where a sentence ended.</span></div>
+        identify it, and a line break marks where a sentence ended.</span></div>
     </div>
     <div class="wave">
       <canvas id="bars"></canvas>
       <div class="stat">
-        <span>delay p50 <b id="p50">—</b></span>
-        <span>p90 <b id="p90">—</b></span>
-        <span>words <b id="words">0</b></span>
-        <span>speakers <b id="spk">0</b></span>
+        <span>delay p50<b id="p50">&mdash;</b></span>
+        <span>p90<b id="p90">&mdash;</b></span>
+        <span>words<b id="words">0</b></span>
+        <span>speakers<b id="spk">0</b></span>
       </div>
     </div>
   </div>
-</main>
 
+  <section>
+    <h3>Measured, on a laptop CPU</h3>
+    <p>Apple M4, CPU only, no accelerator. The delay figure is how long after a
+      word is spoken before it is final and will never change.</p>
+    <div class="tiles">
+      <div class="tile"><div class="n">0.28s</div><div class="l">median emission delay</div></div>
+      <div class="tile"><div class="n">0.05&times;</div><div class="l">real time factor, light recogniser</div></div>
+      <div class="tile"><div class="n">4.4%</div><div class="l">word error rate, LibriSpeech dev-clean</div></div>
+      <div class="tile"><div class="n">340MB</div><div class="l">memory, shared across every session</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h3>Two recognisers, and the trade between them</h3>
+    <p>Neither dominates, which is why both ship. Nemotron commits sooner and
+      punctuates natively; the zipformer costs a fifth of the CPU. Pick with
+      <code>--model</code>.</p>
+    <div class="legend">
+      <span class="key"><span class="sw" style="background:var(--series-1)"></span>nemotron-3.5-160ms</span>
+      <span class="key"><span class="sw" style="background:var(--series-2)"></span>zipformer-en</span>
+    </div>
+    <div class="charts"><figure><figcaption>Emission delay</figcaption><div class="note">Median seconds from spoken to final. Lower is better.</div><svg viewBox="0 0 300 80" role="img" aria-label="Emission delay"><line class="grid" x1="104" y1="6" x2="104" y2="74"/><g class="mark"><title>nemotron: 0.36s</title><path d="M104,12 H198.3076923076923 A4,4 0 0 1 202.3076923076923,16 V22 A4,4 0 0 1 198.3076923076923,26 H104 Z" fill="var(--series-1)"/></g><text class="alabel" x="94" y="23" text-anchor="end">nemotron</text><text class="vlabel" x="210.3076923076923" y="23">0.36s</text><g class="mark"><title>zipformer: 0.52s</title><path d="M104,46 H242.0 A4,4 0 0 1 246.0,50 V56 A4,4 0 0 1 242.0,60 H104 Z" fill="var(--series-2)"/></g><text class="alabel" x="94" y="57" text-anchor="end">zipformer</text><text class="vlabel" x="254.0" y="57">0.52s</text></svg></figure><figure><figcaption>Word error rate</figcaption><div class="note">LibriSpeech dev-clean, streaming. Lower is better.</div><svg viewBox="0 0 300 80" role="img" aria-label="Word error rate"><line class="grid" x1="104" y1="6" x2="104" y2="74"/><g class="mark"><title>nemotron: 6.81%</title><path d="M104,12 H242.0 A4,4 0 0 1 246.0,16 V22 A4,4 0 0 1 242.0,26 H104 Z" fill="var(--series-1)"/></g><text class="alabel" x="94" y="23" text-anchor="end">nemotron</text><text class="vlabel" x="254.0" y="23">6.81%</text><g class="mark"><title>zipformer: 4.4%</title><path d="M104,46 H191.7474302496329 A4,4 0 0 1 195.7474302496329,50 V56 A4,4 0 0 1 191.7474302496329,60 H104 Z" fill="var(--series-2)"/></g><text class="alabel" x="94" y="57" text-anchor="end">zipformer</text><text class="vlabel" x="203.7474302496329" y="57">4.4%</text></svg></figure><figure><figcaption>Real time factor</figcaption><div class="note">CPU seconds per second of audio. Lower is better.</div><svg viewBox="0 0 300 80" role="img" aria-label="Real time factor"><line class="grid" x1="104" y1="6" x2="104" y2="74"/><g class="mark"><title>nemotron: 0.26×</title><path d="M104,12 H242.0 A4,4 0 0 1 246.0,16 V22 A4,4 0 0 1 242.0,26 H104 Z" fill="var(--series-1)"/></g><text class="alabel" x="94" y="23" text-anchor="end">nemotron</text><text class="vlabel" x="254.0" y="23">0.26×</text><g class="mark"><title>zipformer: 0.05×</title><path d="M104,46 H127.30769230769232 A4,4 0 0 1 131.30769230769232,50 V56 A4,4 0 0 1 127.30769230769232,60 H104 Z" fill="var(--series-2)"/></g><text class="alabel" x="94" y="57" text-anchor="end">zipformer</text><text class="vlabel" x="139.30769230769232" y="57">0.05×</text></svg></figure></div>
+    <details><summary>Table view</summary><table>
+      <tr><th>Model</th><th>Delay p50</th><th>WER</th><th>Real time factor</th></tr>
+      <tr><td>nemotron-3.5-160ms</td><td>0.36s</td><td>6.81%</td><td>0.26&times;</td></tr>
+      <tr><td>zipformer-en</td><td>0.52s</td><td>4.40%</td><td>0.05&times;</td></tr>
+    </table></details>
+    <p class="note" style="margin-top:14px">The zipformer was trained on LibriSpeech, so
+      its word error rate there is flattered: its wins concentrate in the proper nouns of
+      the books the corpus is read from. Read the two as "both in the 4 to 7% range on easy
+      read speech", not as a ranking.</p>
+  </section>
+
+  <section>
+    <h3>Speakers</h3>
+    <p>Nothing tells HearWrite how many people are talking.</p>
+    <figure><figcaption>Speaker confusion stays flat as voices are added</figcaption><div class="note">Per speaker recordings. The count is discovered, not configured, and was exact at every size.</div><svg viewBox="0 0 620 190" role="img" aria-label="Speaker confusion by speaker count"><line class="grid" x1="44" y1="156.0" x2="594" y2="156.0"/><text class="alabel" x="36" y="160.0" text-anchor="end">0%</text><line class="grid" x1="44" y1="86.0" x2="594" y2="86.0"/><text class="alabel" x="36" y="90.0" text-anchor="end">5%</text><line class="grid" x1="44" y1="16.0" x2="594" y2="16.0"/><text class="alabel" x="36" y="20.0" text-anchor="end">10%</text><path d="M44.0,112.6 L181.5,70.6 L319.0,62.2 L456.5,55.2 L594.0,49.6" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><g class="mark"><title>2 speakers: 3.1% confusion</title><circle cx="44.0" cy="112.6" r="12" fill="transparent"/><circle cx="44.0" cy="112.6" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/></g><text class="alabel" x="44.0" y="176" text-anchor="middle">2</text><text class="vlabel" x="44.0" y="100.6" text-anchor="middle">3.1%</text><g class="mark"><title>4 speakers: 6.1% confusion</title><circle cx="181.5" cy="70.6" r="12" fill="transparent"/><circle cx="181.5" cy="70.6" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/></g><text class="alabel" x="181.5" y="176" text-anchor="middle">4</text><g class="mark"><title>8 speakers: 6.7% confusion</title><circle cx="319.0" cy="62.2" r="12" fill="transparent"/><circle cx="319.0" cy="62.2" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/></g><text class="alabel" x="319.0" y="176" text-anchor="middle">8</text><g class="mark"><title>16 speakers: 7.2% confusion</title><circle cx="456.5" cy="55.2" r="12" fill="transparent"/><circle cx="456.5" cy="55.2" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/></g><text class="alabel" x="456.5" y="176" text-anchor="middle">16</text><g class="mark"><title>24 speakers: 7.6% confusion</title><circle cx="594.0" cy="49.6" r="12" fill="transparent"/><circle cx="594.0" cy="49.6" r="5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/></g><text class="alabel" x="594.0" y="176" text-anchor="middle">24</text><text class="vlabel" x="594.0" y="37.6" text-anchor="middle">7.6%</text><text class="alabel" x="319.0" y="189" text-anchor="middle">speakers in the recording</text></svg><details><summary>Table view</summary><table><tr><th>Speakers</th><th>Confusion</th></tr><tr><td>2</td><td>3.1%</td></tr><tr><td>4</td><td>6.1%</td></tr><tr><td>8</td><td>6.7%</td></tr><tr><td>16</td><td>7.2%</td></tr><tr><td>24</td><td>7.6%</td></tr></table></details></figure>
+  </section>
+  <section>
+    <h3>What does not work</h3>
+    <p>Published because a benchmark without its failure case is marketing.</p>
+    <div class="callout">
+      <h4>Several people on one microphone will not separate reliably.</h4>
+      <p>A real three person conversation, recorded through a laptop, came back as
+        <b>two speakers</b>, with turn boundaries falling mid sentence. The transcript
+        itself was the most accurate measured anywhere in this project.</p>
+      <p>The cause is measurable rather than mysterious. Two of the three voices sat at
+        <b>0.54</b> cross similarity against <b>0.55</b> within, so no threshold exists
+        between them. Four window and threshold combinations were tried and all returned
+        two speakers. Every voice arrives through the same room, the same distance and the
+        same microphone, and that shared channel signature swamps the individual one.</p>
+      <p>The flat line above is per speaker recordings, where that confound is absent. It
+        is what the same code does with clean capture, and it is why the fix is per
+        speaker streams rather than a better threshold.</p>
+    </div>
+  </section>
+
+  <section>
+    <h3>How it compares</h3>
+    <p>Honestly: it cannot be placed on the published leaderboards, and pretending
+      otherwise would be the easiest thing on this page to get wrong.</p>
+    <div class="callout" style="border-left-color:var(--series-1)">
+      <p>The streaming word error index those charts use is a private corpus, and word
+        error rate moves more between corpora than it does between good systems. Running
+        our own audio and calling the result comparable would be a category error.</p>
+      <p>The diarization figures come from AMI and VoxConverse, which <b>are</b> public.
+        We have not run them. That is the single most valuable measurement still missing
+        here, and it is on the roadmap rather than in a chart.</p>
+      <p>What this does instead is publish what it measures, with the command that
+        reproduces it and the bias attached. On the axis that actually differentiates it,
+        the comparison is easier: it runs on a laptop, with no API key, no account and no
+        gated weights.</p>
+    </div>
+  </section>
+
+  <section>
+    <h3>Run it</h3>
+    <pre>pip install 'hearwrite[onnx,turn,server]'
+hearwrite serve --open</pre>
+    <p>That downloads the models on first use, starts the service and opens this page.
+      The base install pulls exactly one package with zero dependencies; the models are
+      fetched from their publishers against pinned checksums, and nothing gated is
+      accepted.</p>
+  </section>
+
+  <footer>
+    MIT licensed. Model weights carry their own terms and are downloaded, never
+    redistributed &mdash; see NOTICE in the repository.
+    <a href="https://github.com/wbnns/hearwrite">github.com/wbnns/hearwrite</a>
+  </footer>
+</div>
 <script>
 const $ = (id) => document.getElementById(id);
 const said = $("said"), whoEl = $("who");

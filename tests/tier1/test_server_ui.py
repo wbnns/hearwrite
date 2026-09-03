@@ -137,3 +137,56 @@ def test_the_page_treats_an_endpoint_as_a_break_not_a_new_block():
     html = app.UI.read_text()
     assert 'classList.contains("brk")' in html, "consecutive endpoints not collapsed"
     assert "said.lastElementChild" in html
+
+
+# -- the page around the demo ------------------------------------------------
+
+
+def test_the_page_publishes_its_failure_case_next_to_its_numbers():
+    """A benchmark without its failure case is marketing.
+
+    The README once led with "exact at 2, 4, 8, 16 and 24 speakers" and buried
+    the caveat, and a reader pointed it at three people in a room and got two.
+    The page must not repeat that.
+    """
+    html = app.UI.read_text()
+    assert "What does not work" in html
+    assert "one microphone" in html
+    assert "0.54" in html and "0.55" in html, "the measurement behind the claim is missing"
+
+
+def test_the_page_does_not_claim_a_place_on_leaderboards_it_cannot_run():
+    """The AA-WER index corpus is not reproducible and AMI has not been run."""
+    html = app.UI.read_text()
+    assert "cannot be placed on the published leaderboards" in html
+    assert "AMI and VoxConverse" in html
+
+
+def test_every_chart_has_a_table_view():
+    """Colour-only encoding is not an accessible way to read a value."""
+    html = app.UI.read_text()
+    assert html.count("<details>") >= 2
+    assert html.count("Table view") >= 2
+
+
+def test_chart_colours_come_from_the_validated_palette():
+    """Slots 1 and 2 of the reference categorical palette, stepped per mode.
+    Validated on both surfaces: worst all-pairs CVD delta E 26.8 dark, 24.7
+    light, against a floor of 8.
+    """
+    html = app.UI.read_text()
+    for hex_value in ("#3987e5", "#d95926", "#2a78d6", "#eb6834"):
+        assert hex_value in html, f"{hex_value} missing; palette was changed unvalidated"
+
+
+def test_marks_carry_a_hit_target_bigger_than_themselves():
+    """A 10px dot you must land on dead centre is not a hover affordance."""
+    html = app.UI.read_text()
+    assert 'r="12" fill="transparent"' in html
+
+
+def test_dark_mode_is_selected_not_flipped():
+    """Its own steps from the same ramps, chosen for the dark surface."""
+    html = app.UI.read_text()
+    assert "prefers-color-scheme: light" in html
+    assert "--series-1:#3987e5" in html and "--series-1:#2a78d6" in html

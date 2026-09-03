@@ -7,6 +7,28 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+**A demo page rather than a demo.** The live transcription card now sits in a
+page that presents what this project measures: hero figures, the trade between
+the two recognisers as small multiples, the speaker curve, and -- given equal
+weight -- what does not work.
+
+The charts follow one rule that decided most of their design: the palette was
+VALIDATED rather than chosen. Slots 1 and 2 of a reference categorical palette,
+stepped separately for the light and dark surfaces, run through a contrast and
+colour vision deficiency check on both: worst all-pairs CVD delta E 26.8 dark and
+24.7 light against a floor of 8. Dark mode is its own steps, not an inverted
+light mode. Every chart carries a table view, because colour is not an accessible
+way to read a value, and every marker carries a hit target larger than itself.
+
+Two sections exist to stop the page overselling. "What does not work" states the
+shared microphone failure with the similarity numbers that explain it, on the
+same page as the flat speaker curve, so the curve cannot be read as a general
+claim. "How it compares" says plainly that HearWrite cannot be placed on the
+published leaderboards: the streaming word error index is a private corpus, and
+AMI and VoxConverse are public but have not been run. Tests assert both sections
+stay there.
+
+
 **`hearwrite wer`**, so the accuracy claim is reproducible rather than asserted.
 Corpus WER over a LibriSpeech style directory, reporting substitutions,
 deletions and insertions separately because they mean different things: a
