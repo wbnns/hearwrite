@@ -5,6 +5,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **A published page at hearwrite.wbnns.com**, built by `scripts/build_site.py`
+  from the page the server itself serves, so the public copy cannot drift from
+  the live one. The interactive card becomes a recording of a real session and
+  the capture script is stripped, because a page with no service behind it must
+  not try to open a WebSocket. The recording is labelled as a recording, and the
+  provenance line names the machine the measurements came from rather than
+  pointing at the machine serving the page, which is no longer the same one.
+
 ### Fixed
 
 - **The last word of an utterance no longer waits for the session to end.** A
