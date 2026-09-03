@@ -127,7 +127,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=sorted(PRESETS),
         help="conversation labels speakers; dictation is solo and cheaper",
     )
-    serve.add_argument("--model", default="zipformer-en")
+    serve.add_argument(
+        "--model",
+        default=None,
+        help="model name; None means the engine's default, the same one "
+        "`transcribe` uses. A literal default here silently overrides it.",
+    )
     serve.add_argument(
         "--max-sessions",
         type=int,

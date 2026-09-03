@@ -126,3 +126,12 @@ def test_backends_defaults_match_the_cli_defaults():
         assert args.speaker_model == defaults.speaker_model
         assert args.threads == defaults.threads
         assert args.no_turn is False
+        # The one that actually bit: `serve --model` carried a literal default
+        # that silently overrode the engine's, so the service ran a different
+        # recogniser from `transcribe` on the same machine for days.
+        assert args.model is None, (
+            f"`{command} --model` hardcodes {args.model!r} instead of deferring "
+            "to the engine default"
+        )
+        assert args.provider == defaults.provider
+        assert args.normalise == defaults.normalise
