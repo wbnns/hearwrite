@@ -22,6 +22,7 @@ from collections.abc import Iterable
 from ..clock import StreamClock
 from ..engines.base import ASREngine, Hypothesis, Word
 from ..events import Event, EventKind, EventLog, commit_payload
+from ..punctuate.base import Punctuator, preserves_words
 from ..speakers.base import SpeakerFrontend
 from ..turn.base import TurnDetector
 from ..vad.base import VAD, SpeechState
@@ -56,6 +57,7 @@ class Coordinator:
         vad: VAD | None = None,
         speakers: SpeakerFrontend | None = None,
         turn: TurnDetector | None = None,
+        punctuator: Punctuator | None = None,
     ) -> None:
         self.policy = policy
         self.log = EventLog()
@@ -63,6 +65,7 @@ class Coordinator:
         self._engine = engine
         self._vad = vad
         self._turn = turn
+        self._punctuator = punctuator
         # Solo mode is a BYPASS, not a special case of clustering. Running a
         # diarizer over a single voice occasionally splits that person into two
         # labels, which is worse than emitting no distinction at all -- and it
@@ -97,6 +100,13 @@ class Coordinator:
         #: Commit seq numbers still waiting for a speaker label, with the audio
         #: span needed to resolve them later.
         self._unlabeled: list[tuple[int, float, float]] = []
+        #: Commits in the utterance now being spoken, so the polish pass knows
+        #: which span it is re-rendering.
+        self._utterance: list[tuple[int, str]] = []
+        #: Tail of the last polished utterance, handed to the next one as
+        #: context so a clause continuing across an endpoint is not capitalised
+        #: mid sentence. State lives here because wrappers hold none.
+        self._polish_context = ""
 
     @property
     def position(self) -> float:
@@ -155,6 +165,10 @@ class Coordinator:
         endpoint = self._endpoint.flush(at, self._completeness())
         if endpoint is not None:
             self._emit_endpoint(endpoint.at, endpoint.reason, endpoint.completeness)
+        else:
+            # No endpoint fired, but the stream is over, so whatever was still
+            # being said is finished and deserves the same polish.
+            self._polish(at)
 
         return self.log.events[first:]
 
@@ -223,6 +237,7 @@ class Coordinator:
                     turn=self._turn_index,
                 ),
             )
+            self._utterance.append((event.seq, word.text))
             if speaker is None:
                 self._unlabeled.append((event.seq, word.audio_start, word.audio_end))
 
@@ -390,3 +405,41 @@ class Coordinator:
         # different voice starts a new one.
         self._fill_unlabeled(final=True)
         self._closed_through = max(self._closed_through, at)
+        self._polish(at)
+
+    def _polish(self, at: float) -> None:
+        """Re-render the finished utterance with punctuation, if that is safe.
+
+        An utterance is the natural unit: it is complete, so the model has the
+        whole clause, and the result lands a beat after the words themselves.
+
+        The result is DISCARDED unless it contains exactly the same words in the
+        same order. A polish is allowed to change rendering and nothing else,
+        which is what lets a second model touch committed text at all without
+        breaking the rule that a commit is never contradicted.
+        """
+        utterance, self._utterance = self._utterance, []
+        if self._punctuator is None or not utterance:
+            return
+
+        original = " ".join(text for _, text in utterance)
+        polished = self._punctuator.polish(original, self._polish_context)
+        self._polish_context = polished if preserves_words(original, polished) else original
+        if not preserves_words(original, polished):
+            # The model rewrote the words rather than the punctuation. Showing
+            # that would be a contradiction, so it is thrown away silently and
+            # the committed text stands.
+            return
+        if polished == original:
+            return
+
+        self.log.emit(
+            EventKind.POLISHED,
+            at,
+            {
+                "text": polished,
+                "from_seq": utterance[0][0],
+                "to_seq": utterance[-1][0],
+                "turn": self._turn_index,
+            },
+        )

@@ -48,6 +48,12 @@ class Backends:
     vad: bool = True
     #: Disable the semantic gate. Endpointing then reduces to a silence timer.
     turn: bool = True
+    #: Punctuate committed text with a second model. None means "only if the
+    #: recogniser does not do it already", which is the sensible default in both
+    #: directions: redundant behind nemotron, and actively harmful, because the
+    #: punctuation model mangles input that is already punctuated.
+    punctuate: bool | None = None
+    punctuate_model: str = "punct-en"
 
 
 @dataclass
@@ -56,6 +62,7 @@ class Components:
     vad: Any = None
     speakers: Any = None
     turn: Any = None
+    punctuator: Any = None
 
     def as_kwargs(self) -> dict[str, Any]:
         return {
@@ -63,6 +70,7 @@ class Components:
             "vad": self.vad,
             "speakers": self.speakers,
             "turn": self.turn,
+            "punctuator": self.punctuator,
         }
 
 
@@ -110,4 +118,26 @@ def build(policy: Policy, backends: Backends | None = None) -> Components:
 
         components.turn = SmartTurnDetector.from_model(backends.turn_model)
 
+    if _wants_punctuation(backends):
+        from .punctuate.sherpa import SherpaPunctuator
+
+        components.punctuator = SherpaPunctuator.from_model(backends.punctuate_model)
+
     return components
+
+
+def _wants_punctuation(backends: Backends) -> bool:
+    """Whether a second model should re-render the text.
+
+    Asked of the RECOGNISER, because that is where the answer lives: a model
+    that punctuates natively must not be polished again, and one that emits bare
+    words benefits enormously. An explicit setting still wins.
+    """
+    if backends.punctuate is not None:
+        return backends.punctuate
+    if backends.engine == "whisper":
+        return False  # Whisper punctuates.
+    from .models import REGISTRY
+
+    spec = REGISTRY.get(backends.model or DEFAULT_SHERPA_MODEL)
+    return not (spec.punctuates if spec else False)

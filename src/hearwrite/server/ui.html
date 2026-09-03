@@ -32,6 +32,10 @@
   .partial { color:var(--dim); font-style:italic; }
   .unlabelled { border-bottom:1px dotted var(--null); }
   .brk { color:var(--dim); font-size:12px; vertical-align:2px; margin:0 3px; }
+  /* A polish replaces bare words with punctuated ones. The flash is there so it
+     is visible that the text was re-rendered rather than corrected. */
+  @keyframes settle { from { background:var(--line); } to { background:transparent; } }
+  .polished { animation: settle 900ms ease-out; border-radius:3px; }
   footer { position:fixed; bottom:0; left:0; right:0; display:flex; gap:22px;
            padding:9px 20px; border-top:1px solid var(--line); background:var(--bg);
            font:12px ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--dim); }
@@ -55,6 +59,8 @@
     the speaker is not yet identified — it fills in once there is enough audio.
     A <span class="brk">⏎</span> is where the endpoint decided you finished a
     sentence; it is a break <em>within</em> a speaker's turn, not a new one.
+    When a sentence finishes it may flash as a second model puts the punctuation
+    back — the words never change, only how they are written.
   </div>
   <div id="log"></div>
 </main>
@@ -181,6 +187,30 @@ function render(ev) {
       el.appendChild(mark);
       scrollDown();
     }
+    return;
+  }
+
+  if (ev.kind === "polished") {
+    // The same words, re-rendered. Replace the span range in place so the
+    // transcript reads properly, and keep the dotted underline if any word in
+    // the range is still waiting for a speaker.
+    const first = log.querySelector('[data-seq="' + p.from_seq + '"]');
+    if (!first) return;
+    let unlabelled = false;
+    let node = first;
+    const doomed = [];
+    while (node) {
+      const seq = Number(node.dataset.seq);
+      if (!Number.isFinite(seq) || seq > p.to_seq) break;
+      if (node.classList.contains("unlabelled")) unlabelled = true;
+      if (node !== first) doomed.push(node);
+      node = node.nextElementSibling;
+    }
+    doomed.forEach(n => n.remove());
+    first.textContent = p.text + " ";
+    first.className = "polished" + (unlabelled ? " unlabelled" : "");
+    first.dataset.seq = p.from_seq;
+    first.dataset.toSeq = p.to_seq;
     return;
   }
 

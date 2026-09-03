@@ -44,6 +44,11 @@ class EventKind(StrEnum):
     SPEAKER = "speaker"
     ENDPOINT = "endpoint"
     DEGRADED = "degraded"
+    #: A finished utterance, re-rendered with punctuation and casing by a second
+    #: model. It supersedes the committed words for DISPLAY only and is verified
+    #: to contain exactly the same words in the same order, so it contradicts
+    #: nothing. A consumer that ignores it still has a correct transcript.
+    POLISHED = "polished"
 
 
 #: Kinds a consumer may never see revised. Everything else is provisional.

@@ -114,7 +114,10 @@ event fills it in once the identity is unambiguous.
 4. **Gate.** An endpoint fires only when silence is long enough *and* an audio
    native turn detector reads the utterance as finished, with a timeout so a
    speaker who trails off cannot hang the session.
-5. **Emit.** One ordered, append only event log over WebSocket.
+5. **Polish.** When the recogniser emits bare words, a second 31MB model
+   re-renders each finished sentence with punctuation and casing, about 6ms
+   later. It is verified to change only the rendering, never the words.
+6. **Emit.** One ordered, append only event log over WebSocket.
 
 Every model wrapper is stateless. The Coordinator holds all state and all policy,
 in plain synchronous Python with no I/O. That boundary is the design: it makes
@@ -215,6 +218,7 @@ against a pinned SHA-256, and both rules are enforced by tests.
 | Model | Role | Licence |
 |---|---|---|
 | Nemotron 3.5 ASR (160ms) | streaming ASR, punctuated | OpenMDW-1.1 |
+| sherpa-onnx punct-en | punctuation and casing | Apache-2.0 |
 | sherpa-onnx zipformer | streaming ASR, lightweight | Apache-2.0 |
 | NeMo TitaNet small | speaker embeddings | CC-BY-4.0 |
 | Silero VAD | acoustic gate | MIT |

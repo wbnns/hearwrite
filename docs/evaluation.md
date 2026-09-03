@@ -182,6 +182,55 @@ prefix may be taken, and the same rule applies when holding a word -- a held
 word blocks everything after it, because emitting word five while word four is
 pending leaves a hole the append only rule makes permanent.
 
+## The polish pass
+
+A streaming recogniser tuned for latency emits bare words, and bare words read
+as wrong even when every word is right. A 31MB text model can put punctuation
+and casing back about 6ms after a sentence finishes, which is nothing next to
+the recogniser.
+
+Measured on one real recording, the same 11 seconds of speech:
+
+| Path | Output | Real time factor |
+|---|---|---|
+| `nemotron-3.5-160ms` | `The Times January third two thousand nine Chancellor on Brink of Second Bailout for Banks` | 0.235 |
+| `zipformer-en` + polish | `The times January, third, two thousand nine chancellor on Brink of second bail out for banks` | **0.037** |
+
+Six times cheaper, and it gains commas. It also loses: "Times" and "Chancellor"
+become lowercase, and "bailout" splits in two. Neither path dominates, which is
+why both ship.
+
+### It must not run behind a model that already punctuates
+
+Not a judgement call, a measurement. Given Nemotron's own output the punctuation
+model returns `The times January three, two thousand nine chancellor on Brink of
+second Bailout for Banks` -- it lowercases two proper nouns and capitalises a
+common one. Given text that is already punctuated it produces `stairs..`. And
+given UPPERCASE text it returns it unchanged, which would make the whole stage a
+silent no-op behind exactly the recogniser it exists to help.
+
+So the model's own registry entry records whether it punctuates, and the polish
+is built only when it does not. `--punctuate` and `--no-punctuate` override it.
+
+### Why a second model may touch committed text at all
+
+Rewriting a committed word is precisely what the append only rule forbids. The
+polish gets to exist because it is held to a narrower promise: it may change
+RENDERING and nothing else.
+
+`polished` is a separate event that supersedes for display, and the Coordinator
+verifies the result contains the same words in the same order before emitting
+it. A model that drops, adds or substitutes a word has its output discarded and
+the committed text stands. A consumer that ignores `polished` still gets a
+correct transcript, which is the same promise `partial` carries.
+
+### Utterances are fragments, so the model gets context
+
+An endpoint can fall mid clause, so polishing each utterance alone capitalised
+the middle of sentences -- "the Stairs". The previous utterance's last six words
+are passed as context and stripped from the result, which tells the model the
+clause continues.
+
 ## Why abstention is reported separately
 
 A word HearWrite declines to label and a word it labels wrongly are different

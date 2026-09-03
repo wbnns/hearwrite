@@ -20,6 +20,7 @@ from .coordinator import (
 )
 from .events import Event, EventKind, EventLog
 from .protocol import PROTOCOL_VERSION, decode, encode
+from .transcript import committed_text, display_text
 
 __version__ = "0.1.0.dev0"
 
@@ -38,7 +39,9 @@ __all__ = [
     "SpeakerPolicy",
     "StreamClock",
     "__version__",
+    "committed_text",
     "decode",
+    "display_text",
     "encode",
     "preset",
 ]

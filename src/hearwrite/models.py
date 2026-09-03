@@ -57,6 +57,10 @@ class ModelSpec:
     sha256: str | None = None
     #: True for a single file, False for a tarball that needs extracting.
     single_file: bool = False
+    #: True when the model emits punctuation and casing itself. The polish pass
+    #: is then not just redundant but harmful: given already punctuated text the
+    #: punctuation model produces "stairs.." and "TEST one, two, three".
+    punctuates: bool = False
     #: Cache filename. Needed when the URL is percent encoded, so that the file
     #: on disk keeps the name the model is actually known by.
     filename: str = ""
@@ -104,6 +108,7 @@ REGISTRY: dict[str, ModelSpec] = {
         languages="40 locales",
         approx_mb=453,
         summary="Nemotron 3.5 streaming, 160ms lookahead. Punctuation and casing.",
+        punctuates=True,
         sha256="a81909a1780d84cff16d73c15e13e67d9d81d8839faf14870d507d8499f7a61a",
         encoder=("encoder.int8.onnx",),
         decoder=("decoder.int8.onnx",),
@@ -185,6 +190,22 @@ REGISTRY: dict[str, ModelSpec] = {
         summary="smart-turn v3.2. Does not discriminate with our features; see models.py.",
         sha256="2bb026316b14a660486a75b1733cd3fbab8c2fd0314dc9af7be49f8cca967e4f",
         single_file=True,
+    ),
+    "punct-en": ModelSpec(
+        name="punct-en",
+        url=(
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/"
+            "punctuation-models/sherpa-onnx-online-punct-en-2024-08-06.tar.bz2"
+        ),
+        licence="Apache-2.0",
+        languages="en",
+        approx_mb=31,
+        summary="Punctuation and casing over committed text, about 6ms.",
+        sha256="9f5e5a72c7d2829635bd074fce92b6bbd5b78da8a52e7ad8ed1be933f366b99d",
+        encoder=("model.int8.onnx",),
+        decoder=("model.int8.onnx",),
+        joiner=("model.int8.onnx",),
+        tokens=("bpe.vocab",),
     ),
     "silero-vad": ModelSpec(
         name="silero-vad",

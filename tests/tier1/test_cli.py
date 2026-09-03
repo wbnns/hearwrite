@@ -96,7 +96,7 @@ READS = {
     ],
     "bench": ["path", "policy", "engine", "model", "speaker_model", "language", "threads"],
     "endpoints": ["path", "turn_model"],
-    "serve": ["host", "port", "policy", "model", "max_sessions"],
+    "serve": ["host", "port", "policy", "model", "max_sessions", "punctuate", "record"],
     "demo": ["policy", "chunk", "json"],
 }
 

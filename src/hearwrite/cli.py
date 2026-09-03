@@ -75,6 +75,16 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe.add_argument("--json", action="store_true", help="emit the raw event log")
     transcribe.add_argument("--no-vad", action="store_true", help="skip the acoustic gate")
     transcribe.add_argument("--no-turn", action="store_true", help="skip the semantic gate")
+    transcribe.add_argument(
+        "--punctuate",
+        action="store_true",
+        default=None,
+        help="re-render finished sentences with a second model; on by default "
+        "behind a recogniser that does not punctuate, off behind one that does",
+    )
+    transcribe.add_argument(
+        "--no-punctuate", dest="punctuate", action="store_false", help=argparse.SUPPRESS
+    )
 
     models = sub.add_parser("models", help="list known models and their licences")
     models.add_argument(
@@ -118,6 +128,16 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--threads", type=int, default=2)
     serve.add_argument("--no-vad", action="store_true")
     serve.add_argument("--no-turn", action="store_true")
+    serve.add_argument(
+        "--punctuate",
+        action="store_true",
+        default=None,
+        help="re-render finished sentences with a second model; on by default "
+        "behind a recogniser that does not punctuate, off behind one that does",
+    )
+    serve.add_argument(
+        "--no-punctuate", dest="punctuate", action="store_false", help=argparse.SUPPRESS
+    )
     serve.add_argument(
         "--open", action="store_true", help="open the browser UI once the server is up"
     )
@@ -339,6 +359,7 @@ def _backends(args):
         threads=getattr(args, "threads", 2),
         vad=not getattr(args, "no_vad", False),
         turn=not getattr(args, "no_turn", False),
+        punctuate=getattr(args, "punctuate", None),
     )
 
 
@@ -394,7 +415,10 @@ def _transcribe(args) -> int:
     commits = [e for e in events if e.kind == "commit"]
     delays = [e.payload["delay"] for e in commits]
     print()
-    print(f"transcript: {coordinator.log.committed_text}")
+    from .transcript import display_text
+
+    text = display_text(events)
+    print(f"transcript: {text}")
     if not policy.is_solo:
         unlabelled = sum(1 for e in commits if e.payload["speaker"] is None)
         print(
@@ -471,7 +495,10 @@ def _demo(args) -> int:
     for event in events:
         print(_render(event))
     print()
-    print(f"transcript: {coordinator.log.committed_text}")
+    from .transcript import display_text
+
+    text = display_text(events)
+    print(f"transcript: {text}")
     print(f"speakers:   {coordinator.speaker_count}")
     return 0
 
@@ -495,6 +522,8 @@ def _render(event) -> str:
         return f"{head} turn {p['turn']} -> {p['speaker']}"
     if event.kind == "endpoint":
         return f"{head} {p['reason']}"
+    if event.kind == "polished":
+        return f"{head} seq {p['from_seq']}..{p['to_seq']}  {p['text']!r}"
     if event.kind == "degraded":
         return f"{head} degraded={p['degraded']} lag={p['lag']:.2f}s"
     return f"{head} {dict(p)}"
