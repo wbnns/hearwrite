@@ -22,7 +22,7 @@ from collections.abc import Iterable
 from ..clock import StreamClock
 from ..engines.base import ASREngine, Hypothesis, Word
 from ..events import Event, EventKind, EventLog, commit_payload
-from ..punctuate.base import Punctuator, preserves_words
+from ..polish.base import Chain
 from ..speakers.base import SpeakerFrontend
 from ..turn.base import TurnDetector
 from ..vad.base import VAD, SpeechState
@@ -57,7 +57,7 @@ class Coordinator:
         vad: VAD | None = None,
         speakers: SpeakerFrontend | None = None,
         turn: TurnDetector | None = None,
-        punctuator: Punctuator | None = None,
+        polish: Chain | None = None,
     ) -> None:
         self.policy = policy
         self.log = EventLog()
@@ -65,7 +65,7 @@ class Coordinator:
         self._engine = engine
         self._vad = vad
         self._turn = turn
-        self._punctuator = punctuator
+        self._polish_chain = polish
         # Solo mode is a BYPASS, not a special case of clustering. Running a
         # diarizer over a single voice occasionally splits that person into two
         # labels, which is worse than emitting no distinction at all -- and it
@@ -408,28 +408,23 @@ class Coordinator:
         self._polish(at)
 
     def _polish(self, at: float) -> None:
-        """Re-render the finished utterance with punctuation, if that is safe.
+        """Re-render the finished utterance, if a chain is installed.
 
-        An utterance is the natural unit: it is complete, so the model has the
-        whole clause, and the result lands a beat after the words themselves.
+        An utterance is the natural unit: complete, so the stages see a whole
+        clause, and the result lands a beat after the words themselves.
 
-        The result is DISCARDED unless it contains exactly the same words in the
-        same order. A polish is allowed to change rendering and nothing else,
-        which is what lets a second model touch committed text at all without
-        breaking the rule that a commit is never contradicted.
+        Verification lives in the chain, PER STAGE, because the stages promise
+        different things. Punctuation must not change a word; inverse text
+        normalisation exists precisely to turn four words into one figure. A
+        single check here could only ever be right for one of them.
         """
         utterance, self._utterance = self._utterance, []
-        if self._punctuator is None or not utterance:
+        if self._polish_chain is None or not utterance:
             return
 
         original = " ".join(text for _, text in utterance)
-        polished = self._punctuator.polish(original, self._polish_context)
-        self._polish_context = polished if preserves_words(original, polished) else original
-        if not preserves_words(original, polished):
-            # The model rewrote the words rather than the punctuation. Showing
-            # that would be a contradiction, so it is thrown away silently and
-            # the committed text stands.
-            return
+        polished = self._polish_chain.run(original, self._polish_context)
+        self._polish_context = polished
         if polished == original:
             return
 

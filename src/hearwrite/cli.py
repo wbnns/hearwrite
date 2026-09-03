@@ -85,6 +85,18 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe.add_argument(
         "--no-punctuate", dest="punctuate", action="store_false", help=argparse.SUPPRESS
     )
+    transcribe.add_argument(
+        "--no-normalise",
+        dest="normalise",
+        action="store_false",
+        help="keep spoken numbers as words instead of rewriting them as figures",
+    )
+    transcribe.add_argument(
+        "--provider",
+        default="cpu",
+        help="onnxruntime execution provider: cpu, cuda, coreml. Measure before "
+        "assuming an accelerator helps; CoreML is slower than CPU here.",
+    )
 
     models = sub.add_parser("models", help="list known models and their licences")
     models.add_argument(
@@ -137,6 +149,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     serve.add_argument(
         "--no-punctuate", dest="punctuate", action="store_false", help=argparse.SUPPRESS
+    )
+    serve.add_argument(
+        "--no-normalise",
+        dest="normalise",
+        action="store_false",
+        help="keep spoken numbers as words instead of rewriting them as figures",
+    )
+    serve.add_argument(
+        "--provider",
+        default="cpu",
+        help="onnxruntime execution provider: cpu, cuda, coreml. Measure before "
+        "assuming an accelerator helps; CoreML is slower than CPU here.",
     )
     serve.add_argument(
         "--open", action="store_true", help="open the browser UI once the server is up"
@@ -360,6 +384,8 @@ def _backends(args):
         vad=not getattr(args, "no_vad", False),
         turn=not getattr(args, "no_turn", False),
         punctuate=getattr(args, "punctuate", None),
+        normalise=getattr(args, "normalise", True),
+        provider=getattr(args, "provider", "cpu"),
     )
 
 

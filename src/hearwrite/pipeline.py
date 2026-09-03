@@ -54,6 +54,16 @@ class Backends:
     #: punctuation model mangles input that is already punctuated.
     punctuate: bool | None = None
     punctuate_model: str = "punct-en"
+    #: Rewrite spoken numbers as figures: "two thousand nine" to 2009. Rules,
+    #: not a model, so it is deterministic and costs microseconds. It applies
+    #: whatever the recogniser is, because none of them write figures.
+    normalise: bool = True
+    #: ONNX Runtime execution provider. "cpu" everywhere by default, because it
+    #: is the only one measured here and the alternatives are not always faster:
+    #: CoreML came in SLOWER than CPU on Apple silicon for the int8 models this
+    #: ships (0.33 against 0.24), which is common when a quantised graph gets
+    #: converted for an accelerator that would rather have floats.
+    provider: str = "cpu"
 
 
 @dataclass
@@ -62,7 +72,7 @@ class Components:
     vad: Any = None
     speakers: Any = None
     turn: Any = None
-    punctuator: Any = None
+    polish: Any = None
 
     def as_kwargs(self) -> dict[str, Any]:
         return {
@@ -70,7 +80,7 @@ class Components:
             "vad": self.vad,
             "speakers": self.speakers,
             "turn": self.turn,
-            "punctuator": self.punctuator,
+            "polish": self.polish,
         }
 
 
@@ -87,7 +97,9 @@ def build_engine(backends: Backends) -> Any:
     from .engines.sherpa import SherpaStreamingEngine
 
     return SherpaStreamingEngine.from_model(
-        backends.model or DEFAULT_SHERPA_MODEL, num_threads=backends.threads
+        backends.model or DEFAULT_SHERPA_MODEL,
+        num_threads=backends.threads,
+        provider=backends.provider,
     )
 
 
@@ -118,12 +130,30 @@ def build(policy: Policy, backends: Backends | None = None) -> Components:
 
         components.turn = SmartTurnDetector.from_model(backends.turn_model)
 
-    if _wants_punctuation(backends):
-        from .punctuate.sherpa import SherpaPunctuator
-
-        components.punctuator = SherpaPunctuator.from_model(backends.punctuate_model)
-
+    components.polish = build_polish(backends)
     return components
+
+
+def build_polish(backends: Backends) -> Any:
+    """Assemble the re-rendering chain, skipping what the recogniser already does.
+
+    Inverse text normalisation always applies: no recogniser here writes figures,
+    and turning spoken numbers into them is orthogonal to punctuation. The
+    punctuation stage is the one that has to be asked about, because running it
+    behind a model that already punctuates makes good text worse.
+    """
+    from .polish.base import Chain
+
+    stages: list[Any] = []
+    if _wants_punctuation(backends):
+        from .polish.punctuation import PunctuationStage
+
+        stages.append(PunctuationStage.from_model(backends.punctuate_model))
+    if backends.normalise:
+        from .polish.normalisation import NormalisationStage
+
+        stages.append(NormalisationStage())
+    return Chain(stages=tuple(stages)) if stages else None
 
 
 def _wants_punctuation(backends: Backends) -> bool:

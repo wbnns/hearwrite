@@ -1,12 +1,10 @@
-"""Punctuation and casing via sherpa-onnx, on CPU.
+"""Punctuation and casing from a small ONNX model, as a chain stage.
 
-31MB, about 6ms per utterance, so it costs roughly nothing next to a recogniser.
-
-It has one sharp edge that decides where it can be used: it expects LOWERCASE,
-UNPUNCTUATED input. Given text that is already punctuated it produces "stairs.."
-and "TEST one, two, three"; given uppercase text it returns it unchanged. So the
-input is lowercased first, and the pipeline only builds this at all behind a
-recogniser whose own output is bare.
+31MB, about 6ms an utterance. It expects LOWERCASE, UNPUNCTUATED input: given
+punctuated text it produces "stairs..", and given uppercase it returns the text
+unchanged, which would make the stage a silent no-op behind exactly the
+recogniser it exists to help. Both are handled by declaring what it produces so
+the chain can skip it, and by lowercasing before the call.
 """
 
 from __future__ import annotations
@@ -14,14 +12,18 @@ from __future__ import annotations
 from typing import Any
 
 from ..models import find, resolve
+from .base import preserves_words
 
-#: Words of the previous utterance handed to the model as context. Enough to
-#: establish that a clause continues; few enough to cost nothing.
+#: Words of the previous utterance handed over as context. An utterance is a
+#: fragment, and without this every fragment is punctuated as though it began a
+#: sentence, capitalising the middle of a clause: "the Stairs".
 CONTEXT_WORDS = 6
 
 
-class SherpaPunctuator:
-    """Wraps sherpa-onnx OnlinePunctuation."""
+class PunctuationStage:
+    order = 10
+    produces = frozenset({"punctuation", "casing"})
+    name = "punctuation"
 
     def __init__(self, punctuation: Any) -> None:
         self._punctuation = punctuation
@@ -45,20 +47,17 @@ class SherpaPunctuator:
         config.model_config.provider = "cpu"
         return cls(sherpa_onnx.OnlinePunctuation(config))
 
-    def polish(self, text: str, context: str = "") -> str:
-        if not text.strip():
-            return text
-
-        # Lowercase first. The model leaves uppercase input untouched, which
-        # would silently make this whole stage a no-op behind a recogniser that
-        # shouts -- which is exactly the recogniser it exists to help.
+    def apply(self, text: str, context: str = "") -> str:
         lead = context.split()[-CONTEXT_WORDS:] if context else []
         joined = " ".join(lead + text.split()).lower()
         polished = self._punctuation.add_punctuation_with_case(joined)
-
-        # Strip the context back off by word count. It was there to tell the
-        # model this clause is a continuation, not to be shown again.
+        # Strip the context back off. It was there to tell the model the clause
+        # continues, not to be shown again.
         return " ".join(polished.split()[len(lead) :])
+
+    def verify(self, before: str, after: str) -> bool:
+        """Punctuation may change rendering and nothing else."""
+        return preserves_words(before, after)
 
     def reset(self) -> None:
         """Stateless between utterances."""

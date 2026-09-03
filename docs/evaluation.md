@@ -212,6 +212,75 @@ silent no-op behind exactly the recogniser it exists to help.
 So the model's own registry entry records whether it punctuates, and the polish
 is built only when it does not. `--punctuate` and `--no-punctuate` override it.
 
+### The stages are serialized, and that is not cosmetic
+
+Each stage declares an ORDER, what it PRODUCES, and its own CHECK. The chain
+sorts by order, skips a stage whose output is already present, and discards a
+stage that fails its check while carrying on with the rest.
+
+Three measurements forced that shape rather than taste:
+
+| What happens | Why the rule exists |
+|---|---|
+| Punctuation model given punctuated text returns `stairs..` | A stage is skipped when what it produces is already there |
+| Normalisation before punctuation gives `January 3RD 2009` | Order is fixed: models first, deterministic rewrites last |
+| Punctuation model given UPPERCASE returns it unchanged | A stage that silently does nothing is worse than one that is skipped |
+
+The stages also promise different things, so a single shared check could not be
+right for both. Punctuation must not change a word. Inverse text normalisation
+exists precisely to turn four words into one figure, so its check is narrower:
+every word that is not part of a number must survive, in order. A rule that
+rewrote "banks" is caught even though rewriting "two thousand nine" is the job.
+
+The whole chain costs single digit milliseconds against tens or hundreds for the
+recogniser, so serializing them is free.
+
+## Inverse text normalisation
+
+Rules, not a model: deterministic, microseconds, and every decision explainable.
+
+| Spoken | Written |
+|---|---|
+| `january third two thousand nine` | `january 3rd 2009` |
+| `three hundred and forty two people` | `342 people` |
+| `twenty five dollars` | `$25` |
+| `ten percent` | `10%` |
+
+**The risk is over eagerness, and it is not hypothetical.** A microphone test
+recorded during development began "test one two three". Converting that to
+"test 123" would be worse than doing nothing, and a keen implementation does
+exactly that. So a run of number words converts only when it reads as ONE value;
+separate values stay as words. A lone number stays a word too, unless a unit
+follows it, because nobody writes "ten percent" with the ten spelled out.
+
+Known limitation: `nineteen eighty four` stays as words. It is 1984 to a person
+and two numbers to a rule, and converting it needs year specific heuristics that
+would also mangle "nineteen eighty four people". Under conversion is invisible;
+over conversion corrupts the transcript.
+
+## Accelerators
+
+**Measured, and the answer is not the expected one.** On Apple silicon with the
+int8 models this ships, CoreML is SLOWER than the CPU:
+
+| Provider | Real time factor |
+|---|---|
+| `cpu` | 0.239 |
+| `coreml` | 0.328 |
+
+That is common rather than surprising: a quantised graph gets converted for an
+accelerator that would rather have floats, and the conversion costs more than
+the acceleration returns. CPU stays the default.
+
+CUDA is exposed through the same `--provider` flag and is **untested here**, on
+a machine with no NVIDIA GPU. If it does help, the win is not only throughput:
+a cheaper forward pass makes the 80ms model export affordable, and the chunk
+size is the emission latency. Measure it rather than assuming:
+
+```sh
+hearwrite transcribe sample.wav --provider cuda   # needs onnxruntime-gpu
+```
+
 ### Why a second model may touch committed text at all
 
 Rewriting a committed word is precisely what the append only rule forbids. The

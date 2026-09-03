@@ -114,9 +114,11 @@ event fills it in once the identity is unambiguous.
 4. **Gate.** An endpoint fires only when silence is long enough *and* an audio
    native turn detector reads the utterance as finished, with a timeout so a
    speaker who trails off cannot hang the session.
-5. **Polish.** When the recogniser emits bare words, a second 31MB model
-   re-renders each finished sentence with punctuation and casing, about 6ms
-   later. It is verified to change only the rendering, never the words.
+5. **Polish.** A serialized chain re-renders each finished sentence: a 31MB
+   model adds punctuation and casing, then rules turn spoken numbers into
+   figures. Each stage declares its order, what it produces, and its own check,
+   so one cannot quietly undo another. The whole chain is single digit
+   milliseconds.
 6. **Emit.** One ordered, append only event log over WebSocket.
 
 Every model wrapper is stateless. The Coordinator holds all state and all policy,

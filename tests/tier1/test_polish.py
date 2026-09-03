@@ -10,8 +10,7 @@ from __future__ import annotations
 from hearwrite import DICTATION, Coordinator
 from hearwrite.engines.base import Hypothesis
 from hearwrite.engines.fake import ScriptedEngine, words
-from hearwrite.punctuate.base import preserves_words, words_of
-from hearwrite.punctuate.fake import ScriptedPunctuator
+from hearwrite.polish.base import Chain, preserves_words, words_of
 from hearwrite.transcript import committed_text, display_text
 from hearwrite.turn.fake import ScriptedTurnDetector
 from hearwrite.vad.fake import ScriptedVAD
@@ -46,6 +45,38 @@ def test_words_of_ignores_punctuation_and_case():
 # -- through the Coordinator -------------------------------------------------
 
 
+class ScriptedStage:
+    """A stage whose output is scripted, for testing the chain's rules."""
+
+    order = 10
+    produces = frozenset({"punctuation", "casing"})
+    name = "scripted"
+
+    def __init__(self, by_text=None):
+        self.by_text = by_text or {}
+        self.calls: list[str] = []
+        self.contexts: list[str] = []
+
+    def apply(self, text, context=""):
+        self.calls.append(text)
+        self.contexts.append(context)
+        if text in self.by_text:
+            return self.by_text[text]
+        lowered = text.lower()
+        return lowered[:1].upper() + lowered[1:] + "." if lowered else lowered
+
+    def verify(self, before, after):
+        return preserves_words(before, after)
+
+    def reset(self):
+        self.calls.clear()
+        self.contexts.clear()
+
+
+def _chain(stage):
+    return Chain(stages=(stage,)) if stage is not None else None
+
+
 def _run(punctuator, text="the build is green"):
     coord = Coordinator(
         DICTATION,
@@ -54,13 +85,13 @@ def _run(punctuator, text="the build is green"):
         ),
         vad=ScriptedVAD(speech=((0.0, 2.4),)),
         turn=ScriptedTurnDetector(fixed=1.0),
-        punctuator=punctuator,
+        polish=_chain(punctuator),
     )
     return coord, drive(coord, 5.0)
 
 
 def test_a_polish_is_emitted_for_a_finished_utterance():
-    _, events = _run(ScriptedPunctuator())
+    _, events = _run(ScriptedStage())
     polished = [e for e in events if e.kind == "polished"]
     assert polished, "no polish was emitted"
     assert polished[0].payload["text"] == "The build is green."
@@ -68,14 +99,14 @@ def test_a_polish_is_emitted_for_a_finished_utterance():
 
 def test_the_committed_words_are_untouched_by_a_polish():
     """The whole point. The polish is a second document, not an edit."""
-    _, events = _run(ScriptedPunctuator())
+    _, events = _run(ScriptedStage())
     assert committed_text(events) == "the build is green"
     assert display_text(events) == "The build is green."
 
 
 def test_a_polish_that_changes_the_words_is_thrown_away():
     """A model that rewrites content must not reach a consumer at all."""
-    liar = ScriptedPunctuator(by_text={"the build is green": "The build is red."})
+    liar = ScriptedStage(by_text={"the build is green": "The build is red."})
     _, events = _run(liar)
     assert liar.calls, "the punctuator was never called"
     assert not [e for e in events if e.kind == "polished"], "a rewrite was emitted"
@@ -83,7 +114,7 @@ def test_a_polish_that_changes_the_words_is_thrown_away():
 
 
 def test_a_polish_that_drops_a_word_is_thrown_away():
-    thief = ScriptedPunctuator(by_text={"the build is green": "The build is."})
+    thief = ScriptedStage(by_text={"the build is green": "The build is."})
     _, events = _run(thief)
     assert not [e for e in events if e.kind == "polished"]
 
@@ -95,7 +126,7 @@ def test_no_polish_without_a_punctuator():
 
 
 def test_a_polish_names_the_span_it_replaces():
-    _, events = _run(ScriptedPunctuator())
+    _, events = _run(ScriptedStage())
     polished = next(e for e in events if e.kind == "polished")
     commits = [e for e in events if e.kind == "commit"]
     assert polished.payload["from_seq"] == commits[0].seq
@@ -105,7 +136,7 @@ def test_a_polish_names_the_span_it_replaces():
 def test_the_previous_utterance_is_offered_as_context():
     """An utterance is a fragment. Without context every one is punctuated as
     though it began a sentence, which capitalises the middle of a clause."""
-    punctuator = ScriptedPunctuator()
+    punctuator = ScriptedStage()
     engine = ScriptedEngine(
         script={
             1.6: Hypothesis(stable=words("the build is", each=0.4), consumed_to=1.6),
@@ -120,7 +151,7 @@ def test_the_previous_utterance_is_offered_as_context():
         engine=engine,
         vad=ScriptedVAD(speech=((0.0, 1.6), (3.2, 4.4))),
         turn=ScriptedTurnDetector(fixed=1.0),
-        punctuator=punctuator,
+        polish=_chain(punctuator),
     )
     drive(coord, 7.0)
     assert len(punctuator.contexts) >= 2, punctuator.calls
@@ -178,3 +209,87 @@ def test_the_registry_records_which_models_punctuate():
 
     assert REGISTRY["nemotron-3.5-160ms"].punctuates
     assert not REGISTRY["zipformer-en"].punctuates
+
+
+# -- the chain keeps stages out of each other's way --------------------------
+
+
+class DigitStage:
+    order = 90
+    produces = frozenset({"digits"})
+    name = "digits"
+
+    def apply(self, text, context=""):
+        return text.replace("two thousand nine", "2009")
+
+    def verify(self, before, after):
+        return True
+
+    def reset(self):
+        pass
+
+
+class ExplodingStage:
+    order = 50
+    produces = frozenset({"boom"})
+    name = "boom"
+
+    def apply(self, text, context=""):
+        raise RuntimeError("this stage is broken")
+
+    def verify(self, before, after):
+        return True
+
+    def reset(self):
+        pass
+
+
+def test_stages_run_in_declared_order_not_list_order():
+    """Order is a property of the stage, not of how someone assembled the list.
+
+    It matters: run normalisation first and the punctuation model uppercases the
+    digits it does not understand, giving "January 3RD 2009".
+    """
+    chain = Chain(stages=(DigitStage(), ScriptedStage()))
+    assert [s.name for s in chain.stages] == ["scripted", "digits"]
+
+
+def test_a_stage_is_skipped_when_what_it_produces_is_already_there():
+    """The punctuation model given punctuated text returns "stairs..", so this
+    is not tidiness, it is damage control."""
+    stage = ScriptedStage()
+    chain = Chain(stages=(stage,), already_present=frozenset({"punctuation"}))
+    assert chain.run("the build is green") == "the build is green"
+    assert stage.calls == [], "a skipped stage still ran"
+
+
+def test_an_earlier_stage_can_satisfy_a_later_one():
+    first = ScriptedStage()
+    second = ScriptedStage()
+    second.name = "second"
+    second.order = 20
+    chain = Chain(stages=(first, second))
+    chain.run("the build is green")
+    assert first.calls and not second.calls
+
+
+def test_a_stage_that_fails_its_check_is_discarded_and_the_rest_continue():
+    """One bad stage must degrade the output by its own contribution and no more."""
+    liar = ScriptedStage(by_text={"the build is two thousand nine": "The build is red."})
+    chain = Chain(stages=(liar, DigitStage()))
+    out = chain.run("the build is two thousand nine")
+    assert "red" not in out, "a rewrite reached the output"
+    assert out == "the build is 2009", "the later stage was taken down with it"
+    assert chain.rejected == ["scripted"]
+
+
+def test_a_stage_that_raises_does_not_take_the_utterance_with_it():
+    chain = Chain(stages=(ExplodingStage(), DigitStage()))
+    assert chain.run("the build is two thousand nine") == "the build is 2009"
+    assert chain.rejected == ["boom"]
+
+
+def test_an_empty_utterance_is_left_alone():
+    stage = ScriptedStage()
+    assert Chain(stages=(stage,)).run("   ") == "   "
+    assert stage.calls == []
