@@ -32,9 +32,58 @@
            border-bottom:1px solid var(--edge); position:sticky; top:0;
            background:var(--bg); z-index:5; }
   header h1 { font-size:15px; font-weight:640; margin:0; }
+  header .brand { display:flex; flex-direction:column; align-items:flex-start; gap:3px; }
+  header .by { margin:0; font-size:12px; color:var(--dim); line-height:1; }
+  header .by a { font-size:12px; color:var(--dim); }
+  header .by a:hover { color:var(--fg); text-decoration:underline; }
   header .sp { flex:1; }
   header a { font-size:14px; color:var(--dim); text-decoration:none; }
   header a:hover { color:var(--fg); }
+  /* The repository is the point of the page: everything here is something you
+     run yourself. A dim 14px word in the corner was the quietest element on the
+     screen, so it reads as a button instead. */
+  header a.gh { display:inline-flex; align-items:center; gap:7px;
+                font-size:13px; font-weight:560; color:var(--fg);
+                padding:7px 15px; border:1px solid var(--edge); border-radius:999px;
+                background:var(--card); white-space:nowrap;
+                transition:background 140ms ease, border-color 140ms ease, color 140ms ease; }
+  header a.gh svg { width:15px; height:15px; fill:currentColor; flex:0 0 auto; }
+  header a.gh:hover { background:var(--fg); color:var(--bg); border-color:var(--fg); }
+  header a.gh:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  @media (prefers-reduced-motion:reduce) { header a.gh { transition:none; } }
+
+  /* The corner ribbon, the convention for "this is a repository you can take".
+     Drawn in CSS rather than the traditional background image, so it inherits
+     the palette and stays sharp at any density.
+
+     Colours invert the page the way the primary button does, rather than using
+     the accent blue: white on --accent measures 3.7:1 in dark mode and 4.5:1 in
+     light, and 13px bold counts as normal text, so the accent would fail the
+     contrast floor in one theme and sit on the line in the other. */
+  .ribbon { position:fixed; top:0; right:0; width:150px; height:150px;
+            overflow:hidden; z-index:20; text-decoration:none;
+            pointer-events:none; display:none; }
+  .ribbon span { position:absolute; width:212px; left:-21px; top:48px;
+                 transform:rotate(45deg); pointer-events:auto;
+                 display:flex; align-items:center; justify-content:center; gap:7px;
+                 padding:9px 0; background:var(--fg); color:var(--bg);
+                 font:600 13px ui-sans-serif,-apple-system,system-ui,sans-serif;
+                 letter-spacing:0.01em;
+                 box-shadow:0 1px 10px rgba(0,0,0,0.30);
+                 transition:filter 140ms ease; }
+  .ribbon span svg { width:15px; height:15px; fill:currentColor; flex:0 0 auto; }
+  .ribbon:hover span { filter:brightness(0.86); }
+  .ribbon:focus-visible span { outline:2px solid var(--accent); outline-offset:2px; }
+  /* The ribbon is fixed, so it would sit on the text for the whole scroll if it
+     appeared before there is room beside the content column. The column is 960px
+     centred, so its right edge is at (V + 960) / 2 and the ribbon starts at
+     V - 150; they clear each other only from V = 1260 up. Below that the header
+     pill takes over, and exactly one of the two is ever visible. */
+  @media (min-width:1260px) {
+    .ribbon { display:block; }
+    header a.gh { display:none; }
+  }
+  @media (prefers-reduced-motion:reduce) { .ribbon span { transition:none; } }
 
   .hero { padding:64px 0 30px; }
   .hero h2 { font-size:clamp(30px,5vw,50px); line-height:1.1; margin:0 0 18px;
@@ -121,10 +170,20 @@
            margin-top:50px; }
 </style>
 
+<a class="ribbon" href="https://github.com/wbnns/hearwrite">
+  <span><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.05-.13-.36-.65.08-1.35 0 0 .67-.21 2.2.82.63-.18 1.31-.27 1.98-.27.67 0 1.35.09 1.98.27 1.53-1.04 2.2-.82 2.2-.82.44.7.13 1.22.08 1.35.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Fork on GitHub</span>
+</a>
+
 <header>
-  <h1>HearWrite</h1>
+  <div class="brand">
+    <h1>HearWrite</h1>
+    <p class="by">by <a href="https://x.com/wbnns" rel="me noopener" target="_blank">wbnns</a></p>
+  </div>
   <span class="sp"></span>
-  <a href="https://github.com/wbnns/hearwrite">GitHub</a>
+  <a class="gh" href="https://github.com/wbnns/hearwrite">
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.05-.13-.36-.65.08-1.35 0 0 .67-.21 2.2.82.63-.18 1.31-.27 1.98-.27.67 0 1.35.09 1.98.27 1.53-1.04 2.2-.82 2.2-.82.44.7.13 1.22.08 1.35.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.995 7.995 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    View on GitHub
+  </a>
 </header>
 
 <div class="wrap">
@@ -158,6 +217,25 @@
       </div>
     </div>
   </div>
+
+  <section>
+    <h3>What this is trying to be</h3>
+    <p>Meta published <a href="https://research.meta.ai/blog/introducing-muse-voice-transcribe">Muse
+      Voice Transcribe</a>: one model that streams a transcript, labels who is
+      speaking and marks where an utterance ended, all through a single shared
+      vocabulary. This project asks a narrower question. Can the same capability
+      set be assembled from open weight parts, run on a laptop with no GPU, and
+      cost nothing to operate.</p>
+    <p>The parts exist and are permissively licensed. What does not exist is the
+      agreement between them. One model with a shared vocabulary gets that for
+      free, and four separate models do not. Deciding when a word is final, which
+      speaker it belongs to, and whether a pause ended a thought is the whole of
+      the work here, and it is ordinary Python rather than a training run.</p>
+    <p>Read the reference figures as a ceiling and not a target: 3.1% word error
+      rate, 17.5% diarization error, and about 0.16s from speech to a final word.
+      What follows is what this measures against them, including where it falls
+      short and the one case where it does not work at all.</p>
+  </section>
 
   <section>
     <h3>Measured, on a laptop CPU</h3>

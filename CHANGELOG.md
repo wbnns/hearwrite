@@ -7,6 +7,24 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **An opening section on what the project is for**, naming Muse Voice Transcribe
+  as the reference and stating the question plainly: whether the same capability
+  set can come from open weight parts, on a laptop, at no cost. It says where the
+  hard part is, which is the agreement between four models that a single shared
+  vocabulary would give for free, and it frames the reference figures as a ceiling
+  rather than a target before any of this project's own numbers appear.
+- **A corner fork ribbon**, drawn in CSS so it inherits the palette and stays
+  sharp at any density. It appears only from 1260px up, which is the width where
+  the fixed ribbon finally clears the 960px content column; below that the header
+  keeps a pill sized link instead, so exactly one of the two is ever visible and
+  neither ever sits on the text.
+- **A byline under the wordmark** linking to the author, matching the treatment on
+  stalewatch.com.
+- **Analytics on the published page only.** The tag is injected at publish time
+  rather than living in the source page, because the published page and the page
+  a reader gets from `hearwrite serve` are built from the same file, and a tag in
+  that file would report every self hosted run to this property without the
+  operator ever agreeing to it.
 - **A favicon**, one SVG kept next to the server that serves it, at
   `/favicon.svg`, and copied into the published page by the site build. The
   server grew a route for it, which is the only file a browser asks for without

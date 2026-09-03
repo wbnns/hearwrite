@@ -106,6 +106,20 @@ SCRIPT = """<script>
 """
 
 
+# Analytics, and this one matters: the published page and the page a user gets
+# from `pip install hearwrite && hearwrite serve` are built from the same source.
+# A tag in that source would send every self hosted run to this property without
+# the operator ever agreeing to it. It goes in at publish time only.
+ANALYTICS = """<script async src="https://www.googletagmanager.com/gtag/js?id=G-4GCPDZ8NX8"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-4GCPDZ8NX8');
+</script>
+"""
+
+
 # Link preview tags, on the published copy only. They carry absolute URLs, and
 # the server serving this page on localhost has no business advertising them.
 # og:image is scripts/og.html rendered by scripts/build_og.py, so the numbers on
@@ -173,14 +187,20 @@ def build(source: str) -> str:
     page = page.replace(desc_end, desc_end + OG, 1)
     steps += 1
 
-    # 5. Styles for the figure, kept beside the source's own rules.
+    # 5. Analytics, immediately after the preview tags.
+    page = page.replace(OG, OG + ANALYTICS, 1)
+    if "googletagmanager" not in page:
+        raise SystemExit("analytics tag did not land")
+    steps += 1
+
+    # 6. Styles for the figure, kept beside the source's own rules.
     marker = "  .tiles {"
     if marker not in page:
         raise SystemExit("could not find an anchor for the demo styles")
     page = page.replace(marker, STYLE + marker, 1)
     steps += 1
 
-    # 6. The overlay play button's script, at the end of the document.
+    # 7. The overlay play button's script, at the end of the document.
     if not page.rstrip().endswith("</div>"):
         raise SystemExit("unexpected end of document; cannot append the script")
     page = page.rstrip() + "\n" + SCRIPT
@@ -194,8 +214,8 @@ def build(source: str) -> str:
 
     if 'id="mic"' in page or "WebSocket" in page or "getUserMedia" in page:
         raise SystemExit("interactive leftovers survived the transform")
-    if steps != 6:
-        raise SystemExit(f"expected 6 transforms, ran {steps}")
+    if steps != 7:
+        raise SystemExit(f"expected 7 transforms, ran {steps}")
     return page
 
 
