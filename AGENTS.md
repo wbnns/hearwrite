@@ -15,6 +15,15 @@ are swappable and are not the product. The **Coordinator** is the product.
 Not a Whisper wrapper. Not a speech separation system. Not a batch transcriber.
 Not tied to any one model.
 
+## Status, plainly
+
+Streaming transcription, endpointing, punctuation and number normalisation
+**work**. Diarization works on per speaker recordings and **fails on a shared
+microphone** -- three people through one laptop mic came back as two speakers.
+That is measured, not suspected: two of the voices sat at 0.54 cross similarity
+against 0.55 within, so no threshold separates them. Do not tune it; the fix is
+per speaker capture. See README.md.
+
 ## Ten rules
 
 1. **Committed output is append-only.** Once a `commit` is emitted, nothing may

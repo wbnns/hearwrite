@@ -52,6 +52,21 @@ them in retroactively. Committing a *guess* there would be unfixable; leaving a
 gap is not. The browser UI shows those words with a dotted underline until they
 resolve.
 
+## Status
+
+**Streaming transcription is ready to use. Speaker diarization is experimental
+and does not work on a shared microphone.** Those are two different maturities in
+one repository and it is worth being blunt about which is which.
+
+| | |
+|---|---|
+| Streaming ASR, endpointing, punctuation, numbers | **works** |
+| Solo and dictation capture | **works** |
+| WebSocket service, browser UI, Docker | **works** |
+| Diarization, per speaker capture | works, see the numbers below |
+| Diarization, several people on ONE microphone | **does not work reliably** |
+| Multi stream rooms | not built, see the roadmap |
+
 ## What it does, measured
 
 Every number below is measured on an Apple M4, CPU only, and reproducible with
@@ -60,20 +75,23 @@ estimate.
 
 | | |
 |---|---|
-| Emission delay | p50 **0.40s**, p90 **0.60s** |
-| Speaker confusion | **3.1%** at 2 speakers, **7.6%** at 24 |
-| Speaker count | discovered, exact at 2, 4, 8, 16 and 24 |
+| Emission delay | p50 **0.28s** to **0.44s**, p90 **0.52s** to **1.00s** |
 | False endpoint | **5.0%** of mid thought pauses |
-| Real time factor | **0.26** with the default recogniser, **0.045** with the light one |
-| Emission delay | p50 **0.44s** default, 0.36s at 80ms lookahead for 85% more CPU |
-| Memory | ~340MB shared, ~3MB per session |
+| Real time factor | **0.26** default recogniser, **0.045** with the light one |
+| Memory | ~340MB shared across sessions, ~3MB per session |
+| Install | one package, zero dependencies, before any extra |
 
-**Read the caveats before trusting the diarization and endpointing numbers.**
-They come from clean read speech with a pause at every turn boundary and no
-overlap, which is much easier than real conversation, and they are not
-comparable to a published DER.
-[docs/evaluation.md](./docs/evaluation.md) says exactly what they do and do not
-mean, and where they miss their target.
+Diarization is reported separately and with its failure case attached, because a
+number in a table gets read and a caveat under it does not:
+
+| Capture | Result |
+|---|---|
+| Per speaker recordings, 2 to 24 voices | **3.1% to 7.6%** word confusion, speaker count exact every time |
+| Three people, one laptop microphone, ~1s turns | **two speakers found for three**, turns split mid sentence |
+
+The first row is clean audio with one speaker per recording. The second is a real
+conversation someone recorded with this software. Both are true, and the second
+is the one that predicts your meeting.
 
 ## The one rule
 
@@ -129,19 +147,37 @@ on a laptop with no GPU, no network and no downloads.
 
 ## Speakers
 
-Nothing tells HearWrite how many people are talking. The count is discovered,
-and it was exact at every size tested up to 24 speakers.
+**Read this before pointing it at a meeting.**
 
-`speakers=SOLO` skips the speaker frontend entirely. Not "clustering with one
-cluster" — the models never run. Diarizing a single voice occasionally splits
-that person into two labels, which is worse than making no distinction, and it
-costs two models on the hot path for the privilege.
+Nothing tells HearWrite how many people are talking; the count is discovered. On
+per speaker recordings that works well and keeps working as voices are added: it
+found exactly 2, 4, 8, 16 and 24 speakers, with 3.1% to 7.6% word confusion.
 
-`speakers=AUTO` has no fixed speaker count. Twenty speakers is twenty centroids.
-What degrades as speakers are added is accuracy, not capacity.
+**On one shared microphone it does not.** A real three person conversation,
+recorded through a laptop, came back as two speakers with turns split mid
+sentence. The cause is measurable rather than mysterious: two of the three voices
+sat at 0.54 cross similarity against 0.55 within, so no threshold separates them.
+Every voice arrives through the same room, the same distance and the same
+microphone, and that shared channel signature swamps the individual one. Shorter
+windows do not rescue it; four window and threshold combinations all returned two
+speakers.
 
-We do not publish a supported speaker count. We publish
-[the measured curve](./docs/evaluation.md), including where it falls off.
+There is a second, compounding problem: conversational turns are short. In that
+recording the median turn was 1.08s while a voice needs about 1.5s of speech
+before it can be identified at all, so most turns produce no embedding.
+
+**The honest fix is not a better threshold, it is per speaker capture.** If each
+person has their own microphone and their own stream, the speaker label is
+simply which stream the audio arrived on -- bookkeeping rather than machine
+learning, and effectively perfect. That is why meeting tools do not struggle with
+this. HearWrite already gives each connection its own independent session, so
+three people on three laptops each get a clean transcript today; what is missing
+is merging those streams into one timeline. See the roadmap.
+
+`speakers=SOLO` skips the frontend entirely. Not "clustering with one cluster" --
+the models never run. Diarizing a single voice occasionally splits that person in
+two, which is worse than making no distinction, and it costs two models on the
+hot path for the privilege.
 
 ## Policies
 
@@ -282,14 +318,58 @@ python -m pytest tests/tier2 -m tier2
 
 ## Roadmap
 
-The design this was built from has two further phases: a delay penalty fine
-tune, and a learned per word delay trained with a combined word error and delay
-reward, which is how the reference system achieves adaptive per word latency.
+In the order I would do them.
 
-Both are training work needing a GPU, and both are deliberately unscheduled. The
-streaming transducer already beats the latency target those phases were meant to
-reach, and confidence gating gets the Whisper engine a 2.5x improvement for
-free. Until the measured gap justifies the compute, it does not.
+**1. Multi stream rooms.** Several clients feeding one merged transcript, with a
+shared room id and a common clock. This is the real answer to multi speaker: with
+per speaker capture the label is which stream it came from, so it sidesteps the
+clustering problem rather than fighting it, and it gives a better result than
+single microphone diarization ever will. Ordinary engineering rather than
+research.
+
+**2. A shared microphone diarizer, or an honest refusal.** NVIDIA's Streaming
+Sortformer is purpose built for online diarization and is already in the model
+registry. It caps at 4 speakers and needs torch and NeMo, roughly 2GB, which
+breaks the one package and zero dependencies property this is built around. It
+may not beat clustering on a shared mic either. Worth trying, behind an extra,
+and worth abandoning if it does not measurably help.
+
+**3. A real diarization corpus.** Every diarization number here comes from
+concatenated LibriSpeech, which is one speaker per recording with a clean pause
+at every boundary. AMI or VoxConverse would say what the numbers actually are on
+meeting audio. I expect them to be much worse, and knowing by how much is worth
+more than any tuning done without it.
+
+### Deliberately not scheduled
+
+The design this was built from ends with a delay penalty fine tune and a learned
+per word delay, trained with a combined word error and delay reward. Both need a
+GPU, and the streaming transducer already beats the latency target they were
+meant to reach. Until a measurement says otherwise, they are not worth the
+compute.
+
+## Constraints
+
+Things that are true by design, and will stay true.
+
+* **CPU only.** No CUDA path is tested. `--provider` exposes alternatives, and
+  CoreML measured *slower* than CPU here for these int8 models.
+* **English in practice.** The default recogniser advertises 40 locales, but
+  every number here is English, the punctuation model is English only, and
+  inverse text normalisation is English rules.
+* **16kHz mono PCM.** No resampling: naive interpolation aliases and costs word
+  error rate invisibly, so the wrong format is refused with the ffmpeg command
+  to fix it.
+* **No authentication, no TLS.** The audio path expects a short lived token from
+  your own application and a TLS terminator in front. See
+  [SECURITY.md](./SECURITY.md).
+* **Overlapping speech is detected, not separated.** Overlap is labelled `null`
+  rather than guessed at.
+* **No orthography beyond punctuation and numbers.** "half deserted" will not
+  become "half-deserted"; hyphenation needs a lexicon and would misfire more than
+  it fixed.
+* **Weights are downloaded, never redistributed.** Every model is fetched from
+  its publisher against a pinned checksum, and nothing gated is accepted.
 
 ## Contributing
 

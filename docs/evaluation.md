@@ -70,24 +70,55 @@ speakers, one utterance per turn, 0.7s of silence between turns, no overlap.
 Nothing tells the pipeline how many people are talking. The count is discovered,
 and it was exact at every size tested.
 
-### What this does NOT show
+### What this does NOT show, demonstrated
 
-**This is an easy corpus, and the numbers should be read that way.** LibriSpeech
-is clean read speech recorded close to the microphone, one speaker at a time,
-with a clear pause at every turn boundary. Real conversation has overlap,
-interruptions, crosstalk, room noise and back channels ("mm hm", "right") that
-are too short to embed. Expect materially worse results on AMI or VoxConverse,
-and do not compare these figures to a published DER: DER also counts missed
-speech and false alarms, and it is usually measured on much harder audio.
+The table above is concatenated LibriSpeech: one speaker per recording, close
+microphone, studio clean, a clear pause at every turn boundary, no overlap. It is
+not "real conversation but easier". It is a different problem.
 
-**Turn label latency misses its target.** The design doc asked for p90 under
-1.5s; the measured p90 is 2.2s to 4.1s. A label cannot exist before a full 2s
-embedding window has closed, so this is a floor set by the window length, not a
-tuning problem. Shorter windows trade it directly against accuracy.
+**Here is the same software on a real one.** Three people, one laptop
+microphone, ordinary turn taking, 37 seconds:
 
-**Confusion is not the same as being right.** A word is scored against the turn
-its midpoint falls in, so a word straddling a real speaker change can be marked
-wrong even when the labelling is defensible.
+| | |
+|---|---|
+| Speakers present | 3 |
+| Speakers found | **2** |
+| Turn boundaries | several fall MID SENTENCE |
+| Transcript | accurate, p50 delay 0.28s |
+
+The transcription was the best measured anywhere in this document. The
+diarization failed, and the reason is measurable rather than mysterious.
+
+Eleven embedding windows over 37 seconds fall into three groups. One separates
+cleanly from the other two at 0.15 to 0.21 cross similarity. The other two do
+not:
+
+    within group B   0.58
+    within group C   0.55, 0.57, 0.66
+    between B and C  0.39, 0.41, 0.42, 0.43, 0.52, 0.54
+
+The highest cross similarity, 0.54, is above the lowest within similarity, 0.55.
+**No threshold exists in that gap.** Four window and threshold combinations were
+tried, from 2.0s/0.40 down to 1.0s/0.27, and every one returned two speakers.
+
+A second effect compounds it. The median turn in that conversation was **1.08s**,
+while a voice needs about 1.5s of speech before it can be embedded at all, so
+most turns produce no embedding. Eleven windows for fourteen speech runs.
+
+### Why one microphone is the problem
+
+Every voice arrives through the same room, the same distance, the same frequency
+response. That shared channel signature is large and it is identical for all
+speakers, so it swamps the individual voice signature the model is trying to
+read. The LibriSpeech numbers are what the same code does when that confound is
+removed, because each of those speakers was recorded separately.
+
+Which points at the fix. **With per speaker capture the label is which stream the
+audio arrived on**, not the output of a classifier: bookkeeping instead of
+machine learning, and effectively perfect. Meeting tools do not struggle with
+this because they never attempt it. Single microphone diarization is a genuinely
+hard research problem, and beating it with incremental clustering over a general
+purpose embedding model was never likely.
 
 ## Endpointing
 

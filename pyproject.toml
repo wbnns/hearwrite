@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hearwrite"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Real-time transcription, speaker labels and endpointing from open-weight models."
 readme = "README.md"
 # PEP 639. The matching "License :: OSI Approved" classifier is deliberately

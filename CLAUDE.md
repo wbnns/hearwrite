@@ -113,9 +113,32 @@ To add, say, a new ASR engine:
 - 183 Tier 1 tests and 28 Tier 2 tests, `bin/check`, and CI green on 3.11 and
   3.13.
 
-**Not built yet:** Phase 4 (a delay penalty fine tune) and Phase 5 (a learned
-per word delay). Both are training work and both stay on the roadmap until the
-measured gap justifies them.
+- **The polish chain** (`src/hearwrite/polish/`): punctuation from a model, then
+  inverse text normalisation from rules, serialized with declared order.
+- **Two semantic gates**: smart-turn, and reading the recogniser's own full
+  stops. `--turn-detector auto` picks per recogniser.
+
+**Not built:** multi stream rooms, which is the real answer to multi speaker.
+Phases 4 and 5 of the design doc (a delay penalty fine tune, a learned per word
+delay) need a GPU and stay unscheduled; the transducer already beats the latency
+target they were meant to reach.
+
+## Diarization does not work on a shared microphone
+
+This is the project's known weak point and it is worth knowing before you spend
+a day tuning it. On per speaker recordings the clustering is good: exactly 2, 4,
+8, 16 and 24 speakers found, 3.1% to 7.6% confusion. On three people through one
+laptop microphone it found two speakers and split turns mid sentence.
+
+The cause is measured, not suspected. Two of the three voices sat at 0.54 cross
+similarity against 0.55 within, so **no threshold exists between them**. Four
+window and threshold combinations were tried and all returned two speakers. Every
+voice arrives through the same room and the same microphone, and that shared
+channel signature swamps the individual one.
+
+So do not tune the threshold to fix a shared microphone. The fix is per speaker
+capture, where the label becomes which stream the audio arrived on. See the
+roadmap in README.md.
 
 ## The clustering threshold is calibration, not taste
 

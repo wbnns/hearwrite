@@ -3,7 +3,41 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.1.0] -- 2026-09-03
+
+Not 1.0. The event protocol is frozen and the transcription pipeline is solid,
+but "1.0" would claim the design is settled, and diarization is not. Shipping
+0.1.0 says what is true: this does streaming transcription well and does multi
+speaker capture badly on one microphone.
+
+
+### Changed -- the documentation now says which half is ready
+
+Streaming transcription and diarization are at different maturities and the
+README was reporting them as though they were not. "Speaker count: discovered,
+exact at 2, 4, 8, 16 and 24" sat in the headline table with the caveat
+underneath, which is the wrong way round: a number in a table gets read and a
+caveat under it does not. Someone tried it on three people in a room and got two
+speakers, which is exactly what the caveat had warned about and exactly what the
+table had promised away.
+
+There is now a Status section that says plainly what works and what does not, the
+diarization figures are reported next to their failure case rather than under a
+disclaimer, and `docs/evaluation.md` carries the real conversation result with
+the similarity numbers that explain it.
+
+Also added a Constraints section: CPU only, English in practice, 16kHz mono with
+no resampling, no authentication or TLS, overlap detected rather than separated,
+no orthography beyond punctuation and numbers, and weights downloaded rather than
+redistributed. All true by design and intended to stay true.
+
+The roadmap is now ordered by what would actually help. Multi stream rooms first,
+because with per speaker capture the label is which stream the audio arrived on
+-- bookkeeping rather than machine learning, and better than single microphone
+diarization will ever be. Sortformer second and conditionally. A real diarization
+corpus third, because every number here comes from concatenated LibriSpeech and
+nobody knows what they are on meeting audio.
+
 
 ### Added -- it fits on a small VPS
 
