@@ -210,6 +210,30 @@
   table { border-collapse:collapse; margin-top:10px; font-size:13px; width:100%; }
   th,td { text-align:left; padding:5px 10px 5px 0; border-bottom:1px solid var(--edge); }
   th { color:var(--dim); font-weight:600; }
+  /* Four columns of prose read at 960px and not at all on a phone, so the
+     comparison scrolls inside its own box rather than making the page scroll
+     sideways, which would move every other section too.
+
+     The edge shadows are the only cue that it scrolls: macOS hides overlay
+     scrollbars until a gesture starts, so without them a phone shows one and a
+     half columns and no reason to believe there are more. The cover layers are
+     painted in --bg and attached `local`, so they travel with the content and
+     uncover the shadow beneath only while there is something past that edge. */
+  .cmp {
+    overflow-x:auto;
+    background:
+      linear-gradient(to right, var(--bg), transparent) 0 0 / 30px 100% no-repeat local,
+      linear-gradient(to left, var(--bg), transparent) 100% 0 / 30px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%,
+        color-mix(in srgb, var(--fg) 26%, transparent), transparent)
+        0 0 / 16px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%,
+        color-mix(in srgb, var(--fg) 26%, transparent), transparent)
+        100% 0 / 16px 100% no-repeat scroll;
+  }
+  .cmp table { min-width:760px; }
+  .cmp td { vertical-align:top; }
+  .cmp tr td:first-child { color:var(--dim); white-space:nowrap; }
 
   .callout { background:var(--card); border:1px solid var(--edge);
              border-left:3px solid var(--b); border-radius:12px; padding:20px 24px; }
@@ -366,6 +390,68 @@
         the comparison is easier: it runs on a laptop, with no API key, no account and no
         gated weights.</p>
     </div>
+    <p style="margin-top:26px">Two systems are worth naming by price rather than by
+      leaderboard. <a href="https://developer.meta.com/ai/models/muse-voice-transcribe/">Muse
+      Voice Transcribe</a> is the streaming ceiling this project was built against,
+      and it bills $0.18 an hour.
+      <a href="https://microsoft.ai/models/mai-transcribe-2/">MAI-Transcribe-2</a>
+      arrived calling itself the fastest, most accurate and cheapest speech
+      recognition model in the world, at $0.10. On their own benchmarks neither
+      claim is in dispute, and both are better than what is measured here. What the
+      two have in common is the part a table shows better than a sentence: the audio
+      goes somewhere else, and the meter runs by the hour. One of them also wants
+      the recording to be finished before it starts.</p>
+    <div class="cmp"><table>
+      <tr><th></th><th>Muse Voice Transcribe</th><th>MAI-Transcribe-2</th><th>HearWrite</th></tr>
+      <tr><td>Shape</td>
+        <td>Streaming, hosted.</td>
+        <td>Batch, hosted. One file, up to 300MB, in and a transcript out.</td>
+        <td>Streaming, local. A word is final once committed and never changes.</td></tr>
+      <tr><td>Where it runs</td>
+        <td>Meta Model API. No weights.</td>
+        <td>Microsoft Foundry, public preview. No on premises build, no weights.</td>
+        <td>A laptop or a 1GB VPS, CPU only. Open weights, pinned checksums.</td></tr>
+      <tr><td>Audio leaves the machine</td>
+        <td>Yes.</td>
+        <td>Yes. That is the product.</td>
+        <td>No.</td></tr>
+      <tr><td>Price per hour of audio</td>
+        <td><b>$0.18</b>, or $3.00 per 1,000 minutes.</td>
+        <td><b>$0.10</b>, a launch offer. No standard rate is published, and the previous model was $0.36.</td>
+        <td><b>None.</b> The box costs the same busy or idle.</td></tr>
+      <tr><td>Delay to a final word</td>
+        <td>About 0.16s.</td>
+        <td>Does not apply: it needs the recording first. Throughput is an hour of audio in about ten seconds.</td>
+        <td>0.36s default, 0.52s light.</td></tr>
+      <tr><td>Word error rate</td>
+        <td>3.1%, Artificial Analysis streaming.</td>
+        <td>5.2% average, FLEURS, 60 languages.</td>
+        <td>6.81% default, 4.40% light, LibriSpeech dev-clean.</td></tr>
+      <tr><td>Languages</td>
+        <td>25 and more, validated.</td>
+        <td>60, with code switching.</td>
+        <td>English.</td></tr>
+      <tr><td>Speakers</td>
+        <td>20 and more, live.</td>
+        <td>Over a finished file, with the whole recording available.</td>
+        <td>Discovered as it runs, in one pass, abstaining rather than guessing. Not on one shared microphone.</td></tr>
+      <tr><td>Ceiling</td>
+        <td>Eight concurrent streams per tenant, sessions capped at 60 minutes.</td>
+        <td>One file per request, 300MB.</td>
+        <td>Whatever the box holds. Admission defaults to the core count, capped at 16.</td></tr>
+    </table></div>
+    <p class="note" style="margin-top:14px">Three word error rates from three corpora
+      are not comparable, which the paragraph above already said and which an extra
+      column does not change. Everything in the first two columns is what Meta and
+      Microsoft publish about themselves. None of it was measured here, which is the
+      opposite of the standard the rest of this page holds itself to. The arithmetic
+      is theirs too, and it is only a rate times hours: one always on stream is about
+      730 hours a month, so $131 at Muse's rate and $73 at Microsoft's launch rate,
+      and eight of them, which is where Muse's default ceiling sits, is a little over
+      $1,000. The concession that goes with it is that for a finished recording in
+      one of sixty languages, or for accuracy on hard audio, those columns win and it
+      is not close. What this has is the top of the table: live, local, and not
+      metered.</p>
   </section>
 
   <section>
