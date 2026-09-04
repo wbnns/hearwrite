@@ -35,11 +35,12 @@ public too, and the same admission applies: we have not run it, and we would
 expect to do badly on it, because the recogniser here is English only and FLEURS
 is a multilingual set.
 
-Note also which numbers exist. Three of the four systems compared on the site
-publish a WER, each on a different corpus, and the fourth publishes none. A
-column of those figures is three measurements of three different things and a
-blank, which is why the site prints it next to the sentence saying it is not a
-ranking.
+Note also which numbers exist. Of the four systems compared on the site, three
+publish a WER and each is on a different corpus; OpenAI publishes none. Counting
+both recognisers here, that column is five cells drawn from four corpora with one
+left empty, which is why the site prints it next to a sentence saying it is not a
+ranking, and names the specific trap: 4.40% appears under MAI's 5.2% and beats
+nothing, because LibriSpeech is the set the light recogniser was trained on.
 
 So what follows is what we measure, reproducibly, with the command that produces
 it. It is not a claim of parity.
@@ -67,6 +68,24 @@ one.
 Which is the argument for measuring on something neither model has seen. Until
 that exists here, the honest reading of the table is "both are in the 4 to 7%
 range on easy read speech", not "zipformer is better".
+
+**`nemotron-3.5-80ms` is not a cheaper way to a better number.** It was measured
+because less lookahead lowers the emission delay, so it was worth knowing whether
+it also cost accuracy. It does. On a 200 file sample of the same set, scored
+against both published models on those same 200 files:
+
+| Model | WER, 200 files | RTF |
+|---|---|---|
+| `zipformer-en` | 3.65% | 0.032 |
+| `nemotron-3.5-160ms` | 4.04% | 0.248 |
+| `nemotron-3.5-80ms` | 4.40% | 0.478 |
+
+Worst of the three and twice the CPU of the default, so it buys latency with
+accuracy and is not a candidate default. Read that table only for the ordering.
+The sample is 200 files in directory order rather than a random draw, and it is
+easier than the whole set: the two published models sit 0.39 points apart on it
+against 2.41 points on all 2703. That is also the reason none of these numbers
+replaced the published ones.
 
 Note also that WER counts substitutions, deletions and insertions separately in
 the output, because they mean different things: deletions are audio the model

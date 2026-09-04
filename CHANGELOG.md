@@ -7,6 +7,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **The comparison table paired a delay with a word error rate from a different
+  recogniser.** The HearWrite row read "0.36s default, 0.52s light" beside "6.81%
+  default, 4.40% light", so scanning it left to right paired the fastest delay
+  with the best accuracy, which is a machine that does not exist. Each recogniser
+  now has a row. The note under the table also names the trap the split creates:
+  4.40% now sits under MAI-Transcribe-2's 5.2% and beats nothing, because
+  LibriSpeech is the set the light recogniser was trained on and 5.2% is an
+  average over sixty languages. The README repeated the same overstatement in
+  prose and now makes no accuracy claim at all.
+
 - **The link preview promised a configuration that does not exist.** `4560b90`
   corrected the four headline figures on the page because, read as a row, three
   were the default recogniser and one was the light one. It fixed the page and
