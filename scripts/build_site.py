@@ -151,7 +151,7 @@ OG = """<meta property="og:type" content="website">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="HearWrite. Streaming ASR, diarization and endpointing on CPU. A transcript line labelled Speaker A, with measured figures: 0.36s median emission delay, 6.8% word error rate, 0.25x real time factor, 442MB memory on the light recogniser.">
+<meta property="og:image:alt" content="HearWrite. Streaming ASR, diarization and endpointing on CPU. A transcript line labelled Speaker A, with measured figures: 0.36s median emission delay, 6.8% word error rate, 0.25x real time factor, 2.0GB memory whether one session or five.">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="apple-touch-icon" href="{site}apple-touch-icon.png">
 <link rel="canonical" href="{site}">

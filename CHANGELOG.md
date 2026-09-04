@@ -5,6 +5,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **The link preview promised a configuration that does not exist.** `4560b90`
+  corrected the four headline figures on the page because, read as a row, three
+  were the default recogniser and one was the light one. It fixed the page and
+  moved the shared image's memory figure to a different wrong value, so
+  `docs/og.png` went on showing **442MB** beside a 6.8% word error rate and a
+  0.25x real time factor that the light recogniser does not have. The image and
+  its `og:image:alt` now say 2.0GB, one session or five, like the page.
+
+  Nothing compared the two, which is why it survived a commit whose entire
+  subject was that class of mistake.
+  `test_site_is_current.py` now asserts the figures in `scripts/og.html` match
+  the page's tiles exactly.
+
 ### Added
 
 - **A comparison against the three hosted transcribers, by price and by shape.**

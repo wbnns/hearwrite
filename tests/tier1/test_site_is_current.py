@@ -14,6 +14,7 @@ If this fails, run:
 from __future__ import annotations
 
 import importlib.util
+import re
 from pathlib import Path
 
 import pytest
@@ -62,3 +63,31 @@ def test_the_published_page_carries_no_capture_code():
     page = PUBLISHED.read_text()
     for leftover in ("WebSocket", "getUserMedia", 'id="mic"'):
         assert leftover not in page, f"{leftover} survived into the published page"
+
+
+def test_the_link_preview_shows_the_same_figures_as_the_page():
+    """The shared image is the copy most people see, and it drifted once already.
+
+    `4560b90` corrected the four headline figures because, read as a row, they
+    described a configuration that does not exist: three for the default
+    recogniser and one for the light one. It fixed the page and moved the image's
+    memory figure to a different wrong value, so the link preview went on
+    promising 442MB beside a 6.8% word error rate that the light recogniser does
+    not have. Nothing caught that, because nothing compared the two.
+
+    If this fails, edit `scripts/og.html` to match the page, then run:
+
+        python3 scripts/build_og.py
+    """
+    og = ROOT / "scripts" / "og.html"
+    if not og.exists():
+        pytest.skip("scripts/og.html is absent")
+    figures = re.compile(r'<div class="n">(.*?)</div><div class="l">(.*?)</div>')
+    on_the_page = set(figures.findall(SOURCE.read_text()))
+    on_the_image = set(figures.findall(og.read_text()))
+    assert on_the_page, "no headline tiles found on the page"
+    assert on_the_image == on_the_page, (
+        "scripts/og.html and the page disagree. Only on the image: "
+        f"{sorted(on_the_image - on_the_page)}. Only on the page: "
+        f"{sorted(on_the_page - on_the_image)}."
+    )
