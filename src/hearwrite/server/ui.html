@@ -367,10 +367,10 @@
       <a href="https://microsoft.ai/models/mai-transcribe-2/">MAI-Transcribe-2</a>
       arrived calling itself the fastest, most accurate and cheapest speech
       recognition model in the world, at $0.10. None of those claims is in dispute on
-      its own benchmark, and the two that publish a word error rate both beat what is
-      measured here. OpenAI publishes none, so that cell is blank rather than
-      favourable. What they have in common is the part a table shows better than a
-      sentence: the audio goes somewhere else, and the meter runs by the hour.</p>
+      its own benchmark, and none of them can be read across to the last two rows, for
+      the reason the note under the table gives. What they have in common is the part
+      a table shows better than a sentence: the audio goes somewhere else, and the
+      meter runs by the hour.</p>
     <div class="cmp"><table>
       <tr><th></th><th>Shape</th><th>Price per hour</th><th>Delay to a final word</th><th>Speakers</th><th>Word error rate</th></tr>
       <tr><td>Muse Voice Transcribe</td>
@@ -391,12 +391,18 @@
         <td>Needs the recording first. An hour of audio in about ten seconds.</td>
         <td>Over the finished file.</td>
         <td>5.2% average, FLEURS, 60 languages.</td></tr>
-      <tr><td>HearWrite</td>
+      <tr><td>HearWrite, default</td>
         <td>Streaming, local.</td>
         <td><b>None</b></td>
-        <td>0.36s default, 0.52s light.</td>
+        <td>0.36s</td>
         <td>Discovered live, abstaining rather than guessing.</td>
-        <td>6.81% default, 4.40% light, LibriSpeech dev-clean.</td></tr>
+        <td>6.81%, LibriSpeech dev-clean.</td></tr>
+      <tr><td>HearWrite, light</td>
+        <td>Streaming, local.</td>
+        <td><b>None</b></td>
+        <td>0.52s</td>
+        <td>Discovered live, abstaining rather than guessing.</td>
+        <td>4.40%, LibriSpeech dev-clean.</td></tr>
     </table></div>
     <p style="margin-top:18px">The row the table cannot hold is the shortest one: the
       first three send your audio somewhere else, and the last one does not. The rest
@@ -406,20 +412,25 @@
       and word timestamps are four products rather than one. MAI-Transcribe-2 is
       Microsoft Foundry, in public preview. None of the three ships weights. This runs
       on a laptop or a 1GB VPS, CPU only, on open weights with pinned checksums, and
-      admission defaults to the core count capped at 16. On languages it is not close:
-      25 and more, a long ISO list, and 60 with code switching, against English.</p>
-    <p class="note" style="margin-top:14px">The last column is three published figures
-      from three different corpora and one blank, so it is not a ranking, which the
-      paragraph above the table already said and which a fourth row does not change.
-      Everything in the first three rows is what Meta, OpenAI and Microsoft publish
-      about themselves. None of it was measured here, which is the opposite of the
+      admission defaults to the core count capped at 16. The light recogniser is
+      <code>--model zipformer-en</code>, and it is the one a 1GB box holds; the
+      default wants 4GB. On languages it is not close: 25 and more, a long ISO list,
+      and 60 with code switching, against English.</p>
+    <p class="note" style="margin-top:14px">The last column is five cells from four
+      corpora, one of them empty, so it is not a ranking. In particular: 4.40% sits
+      under 5.2% and beats nothing. The light recogniser was trained on LibriSpeech,
+      which is the set it is scored on, and a model measured on its own training
+      distribution is flattered; MAI's figure is an average over sixty languages
+      including hard ones. Those are not the same measurement and the smaller number
+      is not the better system. Everything in the first three rows is what Meta,
+      OpenAI and Microsoft publish about themselves. None of it was measured here, which is the opposite of the
       standard the rest of this page holds itself to. The arithmetic is theirs too,
       and it is only a rate times hours: one always on stream is about 730 hours a
       month, so $131 at Muse's rate, $197 at OpenAI's and $73 at Microsoft's launch
       rate, and eight streams, which is where Muse's default ceiling sits, is a little
       over $1,000. The concession that goes with it is that for a finished recording
       in one of sixty languages, or for accuracy on hard audio, those rows win and it
-      is not close. What this has is the last one: live, local, and not metered.</p>
+      is not close. What this has is the last two: live, local, and not metered.</p>
   </section>
 
   <section>
