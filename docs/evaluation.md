@@ -20,16 +20,26 @@ conversations with known speakers and known turn boundaries.
 
 Muse Voice Transcribe publishes 3.1% on the AA-WER Streaming Index and 17.5%
 average DER on AMI-IHM, AMI-SDM and VoxConverse, against competitors at 3.4% to
-4.0% and 21.1% to 28.6%.
+4.0% and 21.1% to 28.6%. MAI-Transcribe-2 publishes 5.2% average WER on FLEURS
+across 60 languages. OpenAI publishes no WER for GPT-Transcribe at all.
 
-**HearWrite cannot claim a place on either chart, and this section is about why
+**HearWrite cannot claim a place on any of those, and this section is about why
 and what it would take.**
 
 The AA-WER Streaming Index is Artificial Analysis's own benchmark and its corpus
 composition is not something we can reproduce. Running our own audio and calling
 the result comparable would be a category error: WER moves by more between
 corpora than it does between good systems. The DER figures come from AMI and
-VoxConverse, which ARE public, and we have simply not run them yet.
+VoxConverse, which ARE public, and we have simply not run them yet. FLEURS is
+public too, and the same admission applies: we have not run it, and we would
+expect to do badly on it, because the recogniser here is English only and FLEURS
+is a multilingual set.
+
+Note also which numbers exist. Three of the four systems compared on the site
+publish a WER, each on a different corpus, and the fourth publishes none. A
+column of those figures is three measurements of three different things and a
+blank, which is why the site prints it next to the sentence saying it is not a
+ranking.
 
 So what follows is what we measure, reproducibly, with the command that produces
 it. It is not a claim of parity.

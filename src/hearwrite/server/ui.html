@@ -180,8 +180,13 @@
         color-mix(in srgb, var(--fg) 26%, transparent), transparent)
         100% 0 / 16px 100% no-repeat scroll;
   }
-  .cmp table { min-width:760px; }
+  .cmp table { min-width:900px; }
   .cmp td { vertical-align:top; }
+  /* 900px is the content column (960 less its 22px gutters) rounded down, so the
+     table is as wide as it can be without making a laptop scroll it too. The
+     headings do not wrap because a two line "Price per hour" beside single line
+     neighbours reads as a mistake rather than as a narrow column. */
+  .cmp th { white-space:nowrap; }
   .cmp tr td:first-child { color:var(--dim); white-space:nowrap; }
 
   .callout { background:var(--card); border:1px solid var(--edge);
@@ -263,10 +268,17 @@
       free, and four separate models do not. Deciding when a word is final, which
       speaker it belongs to, and whether a pause ended a thought is the whole of
       the work here, and it is ordinary Python rather than a training run.</p>
+    <p>OpenAI shows what that costs when nobody does the assembling.
+      <a href="https://developers.openai.com/api/docs/models/gpt-transcribe">GPT-Transcribe</a>
+      turns a file into text for $0.27 an hour. Live audio is a different model at
+      $1.02. Who spoke is a third model, and it does not stream. Word timestamps
+      are a fourth. Every one of them is good, and there is no combination of them
+      that gives you the whole capability set at once, because the agreement
+      between the signals is exactly the part nobody sells you.</p>
     <p>Read Muse's figures as a ceiling and not a target: 3.1% word error rate,
       17.5% diarization error, and about 0.16s from speech to a final word. What
       follows is what this measures against them, including where it falls short,
-      the one case where it does not work at all, and what the two hosted
+      the one case where it does not work at all, and what the three hosted
       alternatives charge by the hour.</p>
   </section>
 
@@ -330,7 +342,7 @@
     </div>
   </section>
 
-  <section>
+  <section id="how-it-compares">
     <h3>How it compares</h3>
     <p>Honestly: it cannot be placed on the published leaderboards, and pretending
       otherwise would be the easiest thing on this page to get wrong.</p>
@@ -346,68 +358,68 @@
         the comparison is easier: it runs on a laptop, with no API key, no account and no
         gated weights.</p>
     </div>
-    <p style="margin-top:26px">Two systems are worth naming by price rather than by
-      leaderboard. <a href="https://developer.meta.com/ai/models/muse-voice-transcribe/">Muse
+    <p style="margin-top:26px">Three systems are worth naming by price rather than
+      by leaderboard. <a href="https://developer.meta.com/ai/models/muse-voice-transcribe/">Muse
       Voice Transcribe</a> is the streaming ceiling this project was built against,
       and it bills $0.18 an hour.
+      <a href="https://developers.openai.com/api/docs/models/gpt-transcribe">GPT-Transcribe</a>
+      is the one most people have already used, at $0.27, for files up to 25MB.
       <a href="https://microsoft.ai/models/mai-transcribe-2/">MAI-Transcribe-2</a>
       arrived calling itself the fastest, most accurate and cheapest speech
-      recognition model in the world, at $0.10. On their own benchmarks neither
-      claim is in dispute, and both are better than what is measured here. What the
-      two have in common is the part a table shows better than a sentence: the audio
-      goes somewhere else, and the meter runs by the hour. One of them also wants
-      the recording to be finished before it starts.</p>
+      recognition model in the world, at $0.10. None of those claims is in dispute on
+      its own benchmark, and the two that publish a word error rate both beat what is
+      measured here. OpenAI publishes none, so that cell is blank rather than
+      favourable. What they have in common is the part a table shows better than a
+      sentence: the audio goes somewhere else, and the meter runs by the hour.</p>
     <div class="cmp"><table>
-      <tr><th></th><th>Muse Voice Transcribe</th><th>MAI-Transcribe-2</th><th>HearWrite</th></tr>
-      <tr><td>Shape</td>
+      <tr><th></th><th>Shape</th><th>Price per hour</th><th>Delay to a final word</th><th>Speakers</th><th>Word error rate</th></tr>
+      <tr><td>Muse Voice Transcribe</td>
         <td>Streaming, hosted.</td>
-        <td>Batch, hosted. One file, up to 300MB, in and a transcript out.</td>
-        <td>Streaming, local. A word is final once committed and never changes.</td></tr>
-      <tr><td>Where it runs</td>
-        <td>Meta Model API. No weights.</td>
-        <td>Microsoft Foundry, public preview. No on premises build, no weights.</td>
-        <td>A laptop or a 1GB VPS, CPU only. Open weights, pinned checksums.</td></tr>
-      <tr><td>Audio leaves the machine</td>
-        <td>Yes.</td>
-        <td>Yes. That is the product.</td>
-        <td>No.</td></tr>
-      <tr><td>Price per hour of audio</td>
-        <td><b>$0.18</b>, or $3.00 per 1,000 minutes.</td>
-        <td><b>$0.10</b>, a launch offer. No standard rate is published, and the previous model was $0.36.</td>
-        <td><b>None.</b> The box costs the same busy or idle.</td></tr>
-      <tr><td>Delay to a final word</td>
+        <td><b>$0.18</b></td>
         <td>About 0.16s.</td>
-        <td>Does not apply: it needs the recording first. Throughput is an hour of audio in about ten seconds.</td>
-        <td>0.36s default, 0.52s light.</td></tr>
-      <tr><td>Word error rate</td>
-        <td>3.1%, Artificial Analysis streaming.</td>
-        <td>5.2% average, FLEURS, 60 languages.</td>
-        <td>6.81% default, 4.40% light, LibriSpeech dev-clean.</td></tr>
-      <tr><td>Languages</td>
-        <td>25 and more, validated.</td>
-        <td>60, with code switching.</td>
-        <td>English.</td></tr>
-      <tr><td>Speakers</td>
         <td>20 and more, live.</td>
-        <td>Over a finished file, with the whole recording available.</td>
-        <td>Discovered as it runs, in one pass, abstaining rather than guessing. Not on one shared microphone.</td></tr>
-      <tr><td>Ceiling</td>
-        <td>Eight concurrent streams per tenant, sessions capped at 60 minutes.</td>
-        <td>One file per request, 300MB.</td>
-        <td>Whatever the box holds. Admission defaults to the core count, capped at 16.</td></tr>
+        <td>3.1%, Artificial Analysis streaming.</td></tr>
+      <tr><td>GPT-Transcribe</td>
+        <td>Files to 25MB, hosted.</td>
+        <td><b>$0.27</b></td>
+        <td>Not at this price. Live audio is a different model, at $1.02.</td>
+        <td>A different model again, which does not stream.</td>
+        <td>None published.</td></tr>
+      <tr><td>MAI-Transcribe-2</td>
+        <td>Batch to 300MB, hosted.</td>
+        <td><b>$0.10</b></td>
+        <td>Needs the recording first. An hour of audio in about ten seconds.</td>
+        <td>Over the finished file.</td>
+        <td>5.2% average, FLEURS, 60 languages.</td></tr>
+      <tr><td>HearWrite</td>
+        <td>Streaming, local.</td>
+        <td><b>None</b></td>
+        <td>0.36s default, 0.52s light.</td>
+        <td>Discovered live, abstaining rather than guessing.</td>
+        <td>6.81% default, 4.40% light, LibriSpeech dev-clean.</td></tr>
     </table></div>
-    <p class="note" style="margin-top:14px">Three word error rates from three corpora
-      are not comparable, which the paragraph above already said and which an extra
-      column does not change. Everything in the first two columns is what Meta and
-      Microsoft publish about themselves. None of it was measured here, which is the
-      opposite of the standard the rest of this page holds itself to. The arithmetic
-      is theirs too, and it is only a rate times hours: one always on stream is about
-      730 hours a month, so $131 at Muse's rate and $73 at Microsoft's launch rate,
-      and eight of them, which is where Muse's default ceiling sits, is a little over
-      $1,000. The concession that goes with it is that for a finished recording in
-      one of sixty languages, or for accuracy on hard audio, those columns win and it
-      is not close. What this has is the top of the table: live, local, and not
-      metered.</p>
+    <p style="margin-top:18px">The row the table cannot hold is the shortest one: the
+      first three send your audio somewhere else, and the last one does not. The rest
+      of the detail sits behind that. Muse runs on the Meta Model API, eight
+      concurrent streams per tenant and sessions capped at 60 minutes. GPT-Transcribe
+      splits the capability set across models, so a transcript, who spoke, low latency
+      and word timestamps are four products rather than one. MAI-Transcribe-2 is
+      Microsoft Foundry, in public preview. None of the three ships weights. This runs
+      on a laptop or a 1GB VPS, CPU only, on open weights with pinned checksums, and
+      admission defaults to the core count capped at 16. On languages it is not close:
+      25 and more, a long ISO list, and 60 with code switching, against English.</p>
+    <p class="note" style="margin-top:14px">The last column is three published figures
+      from three different corpora and one blank, so it is not a ranking, which the
+      paragraph above the table already said and which a fourth row does not change.
+      Everything in the first three rows is what Meta, OpenAI and Microsoft publish
+      about themselves. None of it was measured here, which is the opposite of the
+      standard the rest of this page holds itself to. The arithmetic is theirs too,
+      and it is only a rate times hours: one always on stream is about 730 hours a
+      month, so $131 at Muse's rate, $197 at OpenAI's and $73 at Microsoft's launch
+      rate, and eight streams, which is where Muse's default ceiling sits, is a little
+      over $1,000. The concession that goes with it is that for a finished recording
+      in one of sixty languages, or for accuracy on hard audio, those rows win and it
+      is not close. What this has is the last one: live, local, and not metered.</p>
   </section>
 
   <section>

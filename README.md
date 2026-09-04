@@ -14,6 +14,16 @@ easy part and they are swappable; the hard part is coordinating three signals
 into one ordered stream a client can trust. That coordination is what this
 project actually is.
 
+The hosted alternatives are good and they are metered. Muse Voice Transcribe
+streams, at $0.18 an hour. OpenAI's GPT-Transcribe takes a file up to 25MB, at
+$0.27, and sells live audio, speaker labels and word timestamps as three further
+models. Microsoft's MAI-Transcribe-2 is batch, at $0.10 an hour, a launch offer
+with no standard rate published. The two of them that publish a word error rate
+both beat this one on it, all three want the audio to leave the machine, and none
+of them ships weights. HearWrite is none of those things and costs nothing an hour;
+[the comparison](https://hearwrite.wbnns.com/#how-it-compares) is on the site,
+with the concessions attached.
+
 It runs on a laptop. A 1GB VPS is enough with `--model zipformer-en`; the
 default recogniser wants 4GB.
 

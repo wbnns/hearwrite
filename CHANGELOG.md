@@ -7,6 +7,23 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **A comparison against the three hosted transcribers, by price and by shape.**
+  The site named Muse Voice Transcribe as its reference ceiling but quoted only
+  its accuracy and latency, never its price, so it had nothing to say on the axis
+  a reader decides on. It now tabulates Muse ($0.18 an hour), GPT-Transcribe
+  ($0.27) and MAI-Transcribe-2 ($0.10, a launch offer) against HearWrite, with
+  shape, delay to a final word, speakers and word error rate. The note under it
+  says what the table cannot: the figures are vendor self-reports from four
+  different corpora, one system publishes no word error rate at all, and for a
+  finished recording in one of sixty languages those rows win and it is not
+  close. What is left is that the first three meter by the hour and send the
+  audio elsewhere.
+
+  The same systems now appear in the README intro and in
+  `docs/evaluation.md`, which had both fallen behind the page.
+  `test_comparison_is_consistent.py` holds the README and the page to the same
+  names and the same prices, because nothing else did.
+
 - **A test that the published page cannot go stale.**
   `test_site_is_current.py` rebuilds `docs/index.html` from
   `server/ui.html` and fails if they differ, so the public copy of every number
